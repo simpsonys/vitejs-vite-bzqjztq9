@@ -94,13 +94,13 @@ function parseDate(str) {
 //    57 = 배당수익      → dividend
 //    58 = 누적배당수익  → cumDividend
 // ─────────────────────────────────────────────────────────────────────────────
+
 // ─────────────────────────────────────────────────────────────────────────────
-//  MONTHLY TSV 파싱 (SUMMARY 파싱 및 스마트 병합 방어 로직)
+//  MONTHLY TSV 파싱 (SUMMARY + 스마트 병합 + 자산 데이터 추가)
 // ─────────────────────────────────────────────────────────────────────────────
 function parseMonthlyTSV(text) {
   const rows = text.split("\n").map(r => r.split("\t"));
 
-  // ── 1. SUMMARY 추출 ──
   const r2 = rows[2] || [];
   const r3 = rows[3] || [];
   const r4 = rows[4] || [];
@@ -119,7 +119,6 @@ function parseMonthlyTSV(text) {
     cumCapGain:      n(r4[11]) * 1000,
   };
 
-  // ── 2. MONTHLY 데이터 추출 (데이터 증발 방지) ──
   const monthlyMap = new Map(); 
 
   for (let i = 8; i < rows.length; i++) {
@@ -142,13 +141,23 @@ function parseMonthlyTSV(text) {
     if (principal === 0) continue; 
 
     const profit = n(row[dIdx + 3]) * 1000;
-    const dividend = n(row[57]) * 1000;
-    const cumDividend = n(row[58]) * 1000;
+    
+    // 배당금 데이터 (BF, BG열)
+    const dividend = n(row[dIdx + 56]) * 1000;
+    const cumDividend = n(row[dIdx + 57]) * 1000;
 
-    // 기존 데이터 호출 (없으면 빈 객체)
+    // 자산 탭용 데이터 (AT ~ BE열)
+    const deposit    = n(row[dIdx + 45]) * 1000; // 예적금
+    const invest     = n(row[dIdx + 46]) * 1000; // 투자
+    const pension    = n(row[dIdx + 49]) * 1000; // 연금
+    const car        = n(row[dIdx + 51]) * 1000; // 자동차
+    const jeonse     = n(row[dIdx + 52]) * 1000; // 전세금
+    const assetTotal = n(row[dIdx + 53]) * 1000; // TOTAL
+    const tBond      = n(row[dIdx + 54]) * 1000; // T채권
+    const accCard    = n(row[dIdx + 55]) * 1000; // 계좌-카드
+    const realEstate = n(row[dIdx + 56]) * 1000; // 부동산-대출
+
     const existing = monthlyMap.get(date) || {};
-
-    // ★ 핵심: 새 값이 0일 경우 기존 값을 유지하도록 덮어쓰기 방어
     const mergedProfit = profit !== 0 ? profit : (existing.profit || 0);
     const mergedCumDiv = cumDividend !== 0 ? cumDividend : (existing.cumDividend || 0);
 
@@ -162,7 +171,17 @@ function parseMonthlyTSV(text) {
       returnPct:     n(row[dIdx + 6]) || existing.returnPct || 0,
       dividend:      dividend !== 0 ? dividend : (existing.dividend || 0),
       cumDividend:   mergedCumDiv,
-      capGain:       mergedProfit - mergedCumDiv
+      capGain:       mergedProfit - mergedCumDiv,
+      // 자산 데이터 추가
+      deposit:       deposit !== 0 ? deposit : (existing.deposit || 0),
+      invest:        invest !== 0 ? invest : (existing.invest || 0),
+      pension:       pension !== 0 ? pension : (existing.pension || 0),
+      car:           car !== 0 ? car : (existing.car || 0),
+      jeonse:        jeonse !== 0 ? jeonse : (existing.jeonse || 0),
+      assetTotal:    assetTotal !== 0 ? assetTotal : (existing.assetTotal || 0),
+      tBond:         tBond !== 0 ? tBond : (existing.tBond || 0),
+      accCard:       accCard !== 0 ? accCard : (existing.accCard || 0),
+      realEstate:    realEstate !== 0 ? realEstate : (existing.realEstate || 0),
     });
   }
 
@@ -171,6 +190,8 @@ function parseMonthlyTSV(text) {
 
   return { SUMMARY, MONTHLY };
 }
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  HOLDINGS TSV 파싱
 //  시트: 종목별(100만원이상)
@@ -599,6 +620,7 @@ function CumulativeTab({ data, bp }) {
     </div>
   );
 }
+
 function DividendTab({ data, bp }) {
   const { SUMMARY, DIVIDENDS } = data;
   const isDesktop = bp === "desktop";
@@ -659,11 +681,23 @@ function DividendTab({ data, bp }) {
       </div>
 
       <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}` }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
-          {["연도","배당 수익","시세 차익","종합 수익"].map((h) => (
-            <span key={h} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:"center" }}>{h}</span>
-          ))}
+        {/* 헤더 영역: 화면이 넓으면 2단으로 복제해서 렌더링 */}
+        <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px" }}>
+            {["연도","배당 수익","시세 수익","종합 수익"].map((h, i) => (
+              <span key={`h1-${i}`} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:"center" }}>{h}</span>
+            ))}
+          </div>
+          {isWide && (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px" }}>
+              {["연도","배당 수익","시세 수익","종합 수익"].map((h, i) => (
+                <span key={`h2-${i}`} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:"center" }}>{h}</span>
+              ))}
+            </div>
+          )}
         </div>
+        
+        {/* 데이터 영역 */}
         <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr" }}>
           {[...DIVIDENDS].reverse().map((d, i) => (
             <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", borderBottom:`1px solid ${T.border}`, alignItems:"center" }}>
@@ -678,6 +712,8 @@ function DividendTab({ data, bp }) {
     </div>
   );
 }
+
+
 function MonthlyTab({ data, bp }) {
   const { MONTHLY } = data;
   const isDesktop = bp === "desktop";
@@ -709,11 +745,23 @@ function MonthlyTab({ data, bp }) {
       </div>
 
       <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}` }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
-          {["월","월간","누적","배당"].map((h) => (
-            <span key={h} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:"center" }}>{h}</span>
-          ))}
+        {/* 헤더 영역: 화면이 넓으면 2단으로 복제해서 렌더링 */}
+        <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px" }}>
+            {["월","월간","누적","배당"].map((h, i) => (
+              <span key={`h1-${i}`} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:"center" }}>{h}</span>
+            ))}
+          </div>
+          {isWide && (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px" }}>
+              {["월","월간","누적","배당"].map((h, i) => (
+                <span key={`h2-${i}`} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:"center" }}>{h}</span>
+              ))}
+            </div>
+          )}
         </div>
+        
+        {/* 데이터 영역 */}
         <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr" }}>
           {[...mR].reverse().map((d, i) => (
             <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", borderBottom:`1px solid ${T.border}`, alignItems:"center" }}>
@@ -731,6 +779,138 @@ function MonthlyTab({ data, bp }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+//  자산(Assets) 탭 컴포넌트
+// ─────────────────────────────────────────────────────────────────────────────
+function AssetsTab({ data, bp }) {
+  const { MONTHLY } = data;
+  const isDesktop = bp === "desktop";
+  const isWide    = bp !== "mobile";
+  const pad    = isDesktop ? "0 28px 48px" : "0 16px 100px";
+  const chartH = isDesktop ? 300 : isWide ? 260 : 220;
+
+  // 1. 도넛 차트용 최신 데이터
+  const latest = MONTHLY[MONTHLY.length - 1] || {};
+  const donutData = [
+    { name: "투자",        value: latest.invest,     fill: SC[0] }, 
+    { name: "부동산-대출", value: latest.realEstate, fill: SC[1] }, 
+    { name: "전세금",      value: latest.jeonse,     fill: SC[2] }, 
+    { name: "T채권",       value: latest.tBond,      fill: SC[3] }, 
+    { name: "예적금",      value: latest.deposit,    fill: SC[4] }, 
+    { name: "계좌-카드",   value: latest.accCard,    fill: SC[5] }, 
+    { name: "연금",        value: latest.pension,    fill: SC[6] }, 
+    { name: "자동차",      value: latest.car,        fill: SC[7] }, 
+  ].filter(d => d.value > 0).sort((a, b) => b.value - a.value);
+
+  // 2. 추이 그래프용 전체 데이터
+  const chartData = MONTHLY.filter(m => m.assetTotal > 0);
+
+  return (
+    <div style={{ padding:pad }}>
+      <div style={{ display:"grid", gridTemplateColumns:isDesktop?"1fr 1fr":"1fr", gap:16, marginBottom:16 }}>
+        
+        {/* 상단: 도넛 차트 */}
+        <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
+          <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 4px" }}>최신 자산 구성</p>
+          <p style={{ color:T.textDim, fontSize:11, margin:"0 0 8px" }}>₩{(latest.assetTotal||0).toLocaleString()} · {latest.date}</p>
+          <ResponsiveContainer width="100%" height={isDesktop?240:200}>
+            <PieChart>
+              <Pie data={donutData} cx="50%" cy="50%" innerRadius={isDesktop?65:55} outerRadius={isDesktop?95:85} dataKey="value" paddingAngle={2} strokeWidth={0}>
+                {donutData.map((e, i) => <Cell key={i} fill={e.fill} />)}
+              </Pie>
+              <Tooltip content={({active,payload}) => {
+                if (!active||!payload?.length) return null;
+                const d = payload[0].payload;
+                const pct = ((d.value / latest.assetTotal) * 100).toFixed(1);
+                return (
+                  <div style={{ background:"#1C2230", borderRadius:10, padding:"10px 14px", border:`1px solid ${T.border}` }}>
+                    <p style={{ color:T.text, fontSize:12, fontWeight:600, margin:"0 0 3px" }}>{d.name}</p>
+                    <p style={{ color:T.textSec, fontSize:11, margin:0 }}>{pct}% · ₩{fK(d.value)}원</p>
+                  </div>
+                );
+              }}/>
+            </PieChart>
+          </ResponsiveContainer>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:"4px 12px", marginTop:10, justifyContent:"center" }}>
+            {donutData.map((h, i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:4 }}>
+                <div style={{ width:8, height:8, borderRadius:2, background:h.fill }}/>
+                <span style={{ color:T.textSec, fontSize:11 }}>{h.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 상단: 주요 자산 요약 카드 */}
+        {isDesktop && (
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <StatCard label="총 자산 (TOTAL)" value={"₩"+fK(latest.assetTotal||0)} color={T.text} large/>
+            <StatCard label="투자 자산" value={fK(latest.invest||0)+"원"} color={SC[0]} large/>
+            <StatCard label="부동산-대출" value={fK(latest.realEstate||0)+"원"} color={SC[1]} large/>
+            <StatCard label="T채권" value={fK(latest.tBond||0)+"원"} color={SC[3]} large/>
+          </div>
+        )}
+      </div>
+
+      {/* 중단: 누적 추이 영역 차트 (이중 축 제거) */}
+      <div style={{ background:T.card, borderRadius:16, padding:"16px 6px 8px 0", border:`1px solid ${T.border}`, marginBottom:16 }}>
+        <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 10px 16px" }}>자산 및 TOTAL 추이</p>
+        <ResponsiveContainer width="100%" height={chartH}>
+          <ComposedChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke={T.border}/>
+            <XAxis dataKey="date" tick={{fill:T.textDim,fontSize:9}} tickFormatter={v=>v.slice(2)} axisLine={false} tickLine={false} interval={Math.floor(chartData.length/6)}/>
+            
+            {/* 단일 Y축으로 통합 */}
+            <YAxis tick={{fill:T.textDim,fontSize:9}} axisLine={false} tickLine={false} tickFormatter={v=>fK(v)} width={46}/>
+            <Tooltip content={<CT fmt="krw"/>}/>
+            
+            <Area type="monotone" dataKey="invest"     name="투자"        stackId="a" fill={SC[0]} stroke={SC[0]}/>
+            <Area type="monotone" dataKey="realEstate" name="부동산-대출" stackId="a" fill={SC[1]} stroke={SC[1]}/>
+            <Area type="monotone" dataKey="jeonse"     name="전세금"      stackId="a" fill={SC[2]} stroke={SC[2]}/>
+            <Area type="monotone" dataKey="tBond"      name="T채권"       stackId="a" fill={SC[3]} stroke={SC[3]}/>
+            <Area type="monotone" dataKey="deposit"    name="예적금"      stackId="a" fill={SC[4]} stroke={SC[4]}/>
+            <Area type="monotone" dataKey="accCard"    name="계좌-카드"   stackId="a" fill={SC[5]} stroke={SC[5]}/>
+            <Area type="monotone" dataKey="pension"    name="연금"        stackId="a" fill={SC[6]} stroke={SC[6]}/>
+            <Area type="monotone" dataKey="car"        name="자동차"      stackId="a" fill={SC[7]} stroke={SC[7]}/>
+
+            <Line type="monotone" dataKey="assetTotal" name="TOTAL" stroke={T.text} strokeWidth={2} dot={false}/>
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* 하단: 날짜별 자산 데이터 테이블 */}
+      <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}` }}>
+        <div style={{ overflowX:"auto" }}>
+          {/* 모바일에서도 칼럼이 안 찌그러지도록 최소 넓이(700px) 지정 */}
+          <div style={{ minWidth: 700 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1.2fr", padding:"10px 14px", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
+              {["Date","투자","부동산","전세금","T채권","예적금","계좌·카드","연금","자동차","TOTAL"].map((h, i) => (
+                <span key={h} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:i===0?"left":"right" }}>{h}</span>
+              ))}
+            </div>
+            <div>
+              {[...chartData].reverse().map((d, i) => (
+                <div key={i} style={{ display:"grid", gridTemplateColumns:"1.2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1.2fr", padding:"10px 14px", borderBottom:`1px solid ${T.border}`, alignItems:"center" }}>
+                  <span style={{ color:T.textSec, fontSize:11, textAlign:"left" }}>{d.date}</span>
+                  <span style={{ color:SC[0], fontSize:11, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.invest)}</span>
+                  <span style={{ color:SC[1], fontSize:11, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.realEstate)}</span>
+                  <span style={{ color:SC[2], fontSize:11, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.jeonse)}</span>
+                  <span style={{ color:SC[3], fontSize:11, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.tBond)}</span>
+                  <span style={{ color:SC[4], fontSize:11, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.deposit)}</span>
+                  <span style={{ color:SC[5], fontSize:11, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.accCard)}</span>
+                  <span style={{ color:SC[6], fontSize:11, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.pension)}</span>
+                  <span style={{ color:SC[7], fontSize:11, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.car)}</span>
+                  <span style={{ color:T.text, fontSize:12, fontWeight:700, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.assetTotal)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      
     </div>
   );
 }
@@ -888,11 +1068,14 @@ export default function App() {
     { id:"dividend", label:"배당",   icon:"💰" },
     { id:"monthly",  label:"월별",   icon:"📅" },
     { id:"holdings", label:"종목",   icon:"💎" },
+    { id:"assets",   label:"자산",   icon:"🏦" }, // <-- 추가된 부분
   ];
+  
   const titles = {
     overview:"포트폴리오 종합", returns:"수익률 분석",
     cumul:"누적 현황",          dividend:"배당 분석",
     monthly:"월별 상세",        holdings:"종목별 현황",
+    assets:"자산 구성",         // <-- 추가된 부분
   };
 
   async function loadData() {
@@ -929,7 +1112,7 @@ export default function App() {
   if (status === "loading") return <LoadingScreen/>;
   if (status === "error")   return <ErrorScreen message={errMsg} onRetry={loadData}/>;
 
-  const renderTab = () => {
+const renderTab = () => {
     const props = { data: appData, bp };
     switch (tab) {
       case "overview": return <OverviewTab  {...props}/>;
@@ -938,6 +1121,7 @@ export default function App() {
       case "dividend": return <DividendTab  {...props}/>;
       case "monthly":  return <MonthlyTab   {...props}/>;
       case "holdings": return <HoldingsTab  {...props}/>;
+      case "assets":   return <AssetsTab    {...props}/>; // <-- 추가된 부분
       default:         return null;
     }
   };
