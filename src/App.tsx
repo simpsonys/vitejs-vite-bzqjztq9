@@ -678,7 +678,6 @@ function DividendTab({ data, bp }) {
     </div>
   );
 }
-
 function MonthlyTab({ data, bp }) {
   const { MONTHLY } = data;
   const isDesktop = bp === "desktop";
@@ -711,21 +710,21 @@ function MonthlyTab({ data, bp }) {
 
       <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}` }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
-          {["월","월간","누적","배당"].map((h, i) => (
-            <span key={h} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:i>0?"right":"left" }}>{h}</span>
+          {["월","월간","누적","배당"].map((h) => (
+            <span key={h} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:"center" }}>{h}</span>
           ))}
         </div>
         <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr" }}>
           {[...mR].reverse().map((d, i) => (
-            <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", borderBottom:`1px solid ${T.border}` }}>
-              <span style={{ color:T.textSec, fontSize:12 }}>{d.date}</span>
-              <span style={{ color:d.mReturn>=0?T.accent:T.red, fontSize:12, fontWeight:600, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>
+            <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", borderBottom:`1px solid ${T.border}`, alignItems:"center" }}>
+              <span style={{ color:T.textSec, fontSize:12, textAlign:"center" }}>{d.date}</span>
+              <span style={{ color:d.mReturn>=0?T.accent:T.red, fontSize:12, fontWeight:600, textAlign:"center", fontFamily:"'IBM Plex Mono',monospace" }}>
                 {d.mReturn>=0?"+":""}{d.mReturn.toFixed(1)}%
               </span>
-              <span style={{ color:d.returnPct>=0?T.accent:T.red, fontSize:12, fontWeight:700, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>
+              <span style={{ color:d.returnPct>=0?T.accent:T.red, fontSize:12, fontWeight:700, textAlign:"center", fontFamily:"'IBM Plex Mono',monospace" }}>
                 {fP(d.returnPct)}
               </span>
-              <span style={{ color:d.dividend>0?T.orange:T.textDim, fontSize:11, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>
+              <span style={{ color:d.dividend>0?T.orange:T.textDim, fontSize:11, textAlign:"center", fontFamily:"'IBM Plex Mono',monospace" }}>
                 {d.dividend>0?fK(d.dividend):"-"}
               </span>
             </div>
