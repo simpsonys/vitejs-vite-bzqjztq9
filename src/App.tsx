@@ -171,7 +171,6 @@ function parseMonthlyTSV(text) {
 
   return { SUMMARY, MONTHLY };
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 //  HOLDINGS TSV 파싱
 //  시트: 종목별(100만원이상)
@@ -600,7 +599,6 @@ function CumulativeTab({ data, bp }) {
     </div>
   );
 }
-
 function DividendTab({ data, bp }) {
   const { SUMMARY, DIVIDENDS } = data;
   const isDesktop = bp === "desktop";
@@ -662,17 +660,17 @@ function DividendTab({ data, bp }) {
 
       <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}` }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
-          {["연도","배당","시세","합계"].map((h, i) => (
-            <span key={h} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:i>0?"right":"left" }}>{h}</span>
+          {["연도","배당 수익","시세 차익","종합 수익"].map((h) => (
+            <span key={h} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:"center" }}>{h}</span>
           ))}
         </div>
         <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr" }}>
           {[...DIVIDENDS].reverse().map((d, i) => (
-            <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", borderBottom:`1px solid ${T.border}` }}>
-              <span style={{ color:T.textSec, fontSize:12 }}>{d.year}</span>
-              <span style={{ color:T.orange, fontSize:12, fontWeight:600, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.divIncome)}</span>
-              <span style={{ color:d.capGain>=0?T.accent:T.red, fontSize:12, fontWeight:600, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.capGain)}</span>
-              <span style={{ color:d.totalReturn>=0?T.text:T.red, fontSize:12, fontWeight:700, textAlign:"right", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.totalReturn)}</span>
+            <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", borderBottom:`1px solid ${T.border}`, alignItems:"center" }}>
+              <span style={{ color:T.textSec, fontSize:12, textAlign:"center" }}>{d.year}</span>
+              <span style={{ color:T.orange, fontSize:12, fontWeight:600, textAlign:"center", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.divIncome)}</span>
+              <span style={{ color:d.capGain>=0?T.accent:T.red, fontSize:12, fontWeight:600, textAlign:"center", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.capGain)}</span>
+              <span style={{ color:d.totalReturn>=0?T.text:T.red, fontSize:12, fontWeight:700, textAlign:"center", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.totalReturn)}</span>
             </div>
           ))}
         </div>
