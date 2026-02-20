@@ -1228,8 +1228,10 @@ Your tone is professional, objective, and analytical.
 //  사이드바 (데스크톱 전용)
 // ─────────────────────────────────────────────────────────────────────────────
 function Sidebar({ tab, setTab, tabs, summary }) {
-  const mainTabs = tabs.filter(t => !["assets", "qa"].includes(t.id));
-  const topTabs  = tabs.filter(t => ["assets", "qa"].includes(t.id));
+  // 종합(overview) + 자산 + Q&A → 상단 SPECIAL SERVICES 영역
+  const topTabs  = tabs.filter(t => ["overview", "assets", "qa"].includes(t.id));
+  // 나머지 → INVESTMENT DATA 영역
+  const mainTabs = tabs.filter(t => !["overview", "assets", "qa"].includes(t.id));
 
   return (
     <div style={{ width:220, flexShrink:0, background:T.surface, borderRight:`1px solid ${T.border}`, display:"flex", flexDirection:"column", position:"sticky", top:0, height:"100vh", overflowY:"auto" }}>
