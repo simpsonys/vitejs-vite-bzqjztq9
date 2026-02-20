@@ -1247,11 +1247,20 @@ function Sidebar({ tab, setTab, tabs, summary }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("overview");
+  
   const [status, setStatus]   = useState("loading");
   const [errMsg, setErrMsg]   = useState("");
   const [appData, setAppData] = useState(null);
   const bp = useBP();
   const isDesktop = bp === "desktop";
+
+  // ★ 핵심: 화면 크기(브레이크포인트)가 바뀔 때마다 탭을 강제로 새로고침하게 만드는 키값
+  const [resizeKey, setResizeKey] = useState(0);
+
+  useEffect(() => {
+    // 화면 크기가 바뀌면 key를 변경하여 하위 컴포넌트들을 다시 그리게 합니다.
+    setResizeKey(prev => prev + 1);
+  }, [bp]);
 
   // ★ 1. Q&A 검색어 상태 
   const [qaInput, setQaInput] = useState(""); 
@@ -1320,7 +1329,8 @@ export default function App() {
   if (status === "error")   return <ErrorScreen message={errMsg} onRetry={loadData}/>;
 
   return (
-    <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'IBM Plex Sans KR',sans-serif" }}>
+    // ★ 핵심 수정: 최상단 div에 key={resizeKey}를 추가하여 폴드 화면 전환 시 강제 재렌더링 유도
+    <div key={resizeKey} style={{ minHeight:"100vh", background:T.bg, fontFamily:"'IBM Plex Sans KR',sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -1334,6 +1344,7 @@ export default function App() {
             <div style={{ padding:"20px 28px 16px", position:"sticky", top:0, background:`${T.bg}ee`, backdropFilter:"blur(20px)", zIndex:10, borderBottom:`1px solid ${T.border}` }}>
               <h2 style={{ color:T.text, fontSize:20, fontWeight:800, margin:0 }}>{titles[tab]}</h2>
             </div>
+            {/* ★ 핵심 수정: paddingTop을 8로 조정 */}
             <div style={{ paddingTop:8 }}>{renderTab()}</div>
           </div>
         </div>
@@ -1356,6 +1367,7 @@ export default function App() {
             </div>
           </div>
           
+          {/* ★ 핵심 수정: 모바일 paddingTop을 12로 조정 */}
           <div style={{ paddingTop:12 }}>{renderTab()}</div>
 
           <div style={{ position:"fixed", bottom:0, left:0, right:0, background:`${T.bg}f8`, backdropFilter:"blur(20px)", borderTop:`1px solid ${T.border}`, display:"flex", padding:"6px 0 env(safe-area-inset-bottom,6px)", zIndex:20 }}>
