@@ -1356,7 +1356,7 @@ export default function App() {
               <p style={{ color:T.textDim, fontSize:9, margin:"1px 0 0" }}>SIMPSONYS FINANCE REPORT</p>
             </div>
             <div style={{ display:"flex", gap:6 }}>
-              {["assets", "qa"].map(id => {
+              {["overview", "assets", "qa"].map(id => {
                 const t = tabs.find(x => x.id === id);
                 return (
                   <button key={id} onClick={()=>setTab(id)} style={{ padding:"7px 10px", borderRadius:10, background:tab===id?T.accentDim:T.card, border:`1px solid ${tab===id?T.accent:T.border}`, color:tab===id?T.accent:T.textSec, fontSize:12, fontWeight:700, display:"flex", alignItems:"center", gap:4 }}>
@@ -1371,7 +1371,7 @@ export default function App() {
           <div style={{ paddingTop:12 }}>{renderTab()}</div>
 
           <div style={{ position:"fixed", bottom:0, left:0, right:0, background:`${T.bg}f8`, backdropFilter:"blur(20px)", borderTop:`1px solid ${T.border}`, display:"flex", padding:"6px 0 env(safe-area-inset-bottom,6px)", zIndex:20 }}>
-            {tabs.filter(t => !["assets", "qa"].includes(t.id)).map(t => (
+            {tabs.filter(t => !["overview","assets", "qa"].includes(t.id)).map(t => (
               <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, border:"none", background:"none" }}>
                 <span style={{ fontSize:18, opacity:tab===t.id?1:0.3 }}>{t.icon}</span>
                 <span style={{ fontSize:9, fontWeight:tab===t.id?700:400, color:tab===t.id?T.accent:T.textDim }}>{t.label}</span>
