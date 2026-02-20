@@ -25,7 +25,8 @@ const T = {
   bg:"#080B10", surface:"#0F1318", card:"#131820",
   accent:"#00E676", accentDim:"rgba(0,230,118,0.12)", accentGlow:"rgba(0,230,118,0.05)",
   red:"#FF5252", orange:"#FFB74D", blue:"#42A5F5", cyan:"#4DD0E1",
-  text:"#ECF0F6", textSec:"#8A94A6", textDim:"#4A5268",
+  // ▼ 여기 두 줄을 더 밝은 회색으로 변경했습니다 ▼
+  text:"#ECF0F6", textSec:"#B0B8C4", textDim:"#8A94A6",
   border:"rgba(255,255,255,0.04)", borderActive:"rgba(0,230,118,0.25)",
 };
 const SC = ["#42A5F5","#FF7043","#66BB6A","#FFD740","#CE93D8","#4DD0E1","#FF8A65","#AED581","#FFF176","#BA68C8","#4FC3F7","#FF5252","#81C784","#FFB74D","#9575CD","#26C6DA","#EF5350","#A5D6A7","#FFC107","#7E57C2","#F06292","#80CBC4","#DCE775","#B39DDB","#4DB6AC","#E57373","#64B5F6","#AED581","#FFB74D","#90A4AE"];
@@ -260,12 +261,21 @@ function CT({ active, payload, label, fmt }) {
   );
 }
 
-function StatCard({ label, value, color, sub, large }) {
+// 기존 StatCard 함수를 찾아서 이걸로 통째로 교체하세요.
+function StatCard({ label, value, color, sub, large, isMobile }) {
+  // 모바일일 때 패딩을 확 줄여서 높이를 낮춤 (14px -> 10px)
+  const pad = isMobile ? "10px 12px" : (large ? "20px 22px" : "14px 16px");
+  
+  // 모바일 글씨 크기 상향 조정
+  const labelSize = isMobile ? 12 : (large ? 11 : 11); 
+  const valueSize = isMobile ? 17 : (large ? 22 : 18);
+  const subSize   = isMobile ? 11 : (large ? 11 : 10);
+
   return (
-    <div style={{ background:T.card, borderRadius:14, padding:large?"20px 22px":"14px 16px", border:`1px solid ${T.border}`, flex:1, minWidth:0 }}>
-      <p style={{ color:T.textDim, fontSize:large?11:10, margin:`0 0 ${large?7:5}px`, fontWeight:600, letterSpacing:"0.4px", textTransform:"uppercase" }}>{label}</p>
-      <p style={{ color:color||T.text, fontSize:large?22:18, fontWeight:800, margin:0, letterSpacing:"-0.5px", fontFamily:"'IBM Plex Mono',monospace" }}>{value}</p>
-      {sub && <p style={{ color:T.textSec, fontSize:large?11:10, margin:"3px 0 0" }}>{sub}</p>}
+    <div style={{ background:T.card, borderRadius:12, padding:pad, border:`1px solid ${T.border}`, flex:1, minWidth:0, display:"flex", flexDirection:"column", justifyContent:"center" }}>
+      <p style={{ color:T.textDim, fontSize:labelSize, margin:`0 0 ${isMobile?3:5}px`, fontWeight:600, letterSpacing:"0.4px" }}>{label}</p>
+      <p style={{ color:color||T.text, fontSize:valueSize, fontWeight:800, margin:0, letterSpacing:"-0.5px", fontFamily:"'IBM Plex Mono',monospace" }}>{value}</p>
+      {sub && <p style={{ color:T.textSec, fontSize:subSize, margin:"3px 0 0" }}>{sub}</p>}
     </div>
   );
 }
@@ -300,6 +310,7 @@ function OverviewTab({ data, bp, onAskAi }) {
   const { SUMMARY, MONTHLY, HOLDINGS } = data;
   const isDesktop = bp === "desktop";
   const isWide    = bp !== "mobile";
+  const isMobile  = bp === "mobile"; // ★ 에러 원인 해결: 모바일 판별 변수 추가! ★
   const pad   = isDesktop ? "0 28px 48px" : "0 16px 100px";
   const chartH = isDesktop ? 340 : isWide ? 280 : 250;
 
@@ -354,43 +365,43 @@ function OverviewTab({ data, bp, onAskAi }) {
           value={quickQuestion}
           onChange={(e) => setQuickQuestion(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="오늘 SPGI 주가 어때? 또는 내 자산 분석해줘"
-          style={{ flex: 1, background: "transparent", border: "none", color: T.text, fontSize: 15, outline: "none" }}
+          placeholder="오늘 SPGI 주가 어때?"
+          style={{ flex: 1, background: "transparent", border: "none", color: T.text, fontSize: 16, outline: "none" }} // 폰트 16px로 증가
         />
         <button 
           onClick={() => quickQuestion.trim() && onAskAi && onAskAi(quickQuestion)}
-          style={{ background: T.accent, color: "#000", border: "none", padding: "8px 16px", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 14 }}
+          style={{ background: T.accent, color: "#000", border: "none", padding: "8px 12px", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 18, display:"flex", alignItems:"center", justifyContent:"center" }}
         >
-          물어보기
+          {/* 텍스트 대신 로켓 아이콘 적용 */}
+          🚀
         </button>
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(4,1fr)":"repeat(2,1fr)", gap:10, marginBottom:16 }}>
+{/* 4개 요약 카드 (isMobile 전달) */}
+<div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(4,1fr)":"repeat(2,1fr)", gap:10, marginBottom:16 }}>
         {stats.map((s, i) => (
-          <div key={i} style={{ background:T.card, borderRadius:12, padding:"12px 14px", border:`1px solid ${T.border}`, display:"flex", flexDirection:"column", justifyContent:"center" }}>
-            <p style={{ color:T.textDim, fontSize:11, margin:"0 0 4px" }}>{s.label}</p>
-            <p style={{ color:s.color, fontSize:16, fontWeight:700, margin:0, fontFamily:"'IBM Plex Mono',monospace" }}>{s.value}</p>
-            {s.sub && <p style={{ color:T.textSec, fontSize:10, margin:"4px 0 0" }}>{s.sub}</p>}
-          </div>
+          // ★ 중요: isMobile={isMobile} 추가 ★
+          <StatCard key={i} label={s.label} value={s.value} color={s.color} sub={s.sub} isMobile={isMobile} />
         ))}
       </div>
 
+      {/* Chart + Top10 */}
       <div style={{ display:"grid", gridTemplateColumns:isDesktop?"1fr 1fr":"1fr", gap:16 }}>
         <div style={{ background:T.card, borderRadius:16, padding:"16px 6px 8px 0", border:`1px solid ${T.border}` }}>
-          <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 8px 16px" }}>자산 및 수익 추이</p>
+          <p style={{ color:T.text, fontSize:14, fontWeight:700, margin:"0 0 8px 16px" }}>자산 및 수익 추이</p>
           <div style={{ display:"flex", gap:14, margin:"0 0 10px 16px", flexWrap:"wrap" }}>
             {[{l:"평가총액",c:T.red},{l:"투자원금",c:T.blue},{l:"수익금액",c:T.orange}].map(x => (
               <div key={x.l} style={{ display:"flex", alignItems:"center", gap:5 }}>
                 <div style={{ width:8, height:8, borderRadius:2, background:x.c }}/>
-                <span style={{ color:T.textSec, fontSize:11 }}>{x.l}</span>
+                <span style={{ color:T.textSec, fontSize:12 }}>{x.l}</span>
               </div>
             ))}
           </div>
           <ResponsiveContainer width="100%" height={chartH}>
             <ComposedChart data={MONTHLY}>
               <CartesianGrid strokeDasharray="3 3" stroke={T.border}/>
-              <XAxis dataKey="date" tick={{fill:T.textDim,fontSize:9}} tickFormatter={v=>v.slice(2)} axisLine={false} tickLine={false} interval={Math.floor(MONTHLY.length/6)}/>
-              <YAxis tick={{fill:T.textDim,fontSize:9}} axisLine={false} tickLine={false} tickFormatter={v=>fK(v)} width={46} domain={[dataMin => Math.min(dataMin, -50000000), 'auto']} allowDataOverflow={true} />
+              <XAxis dataKey="date" tick={{fill:T.textDim,fontSize:10}} tickFormatter={v=>v.slice(2)} axisLine={false} tickLine={false} interval={Math.floor(MONTHLY.length/6)}/>
+              <YAxis tick={{fill:T.textDim,fontSize:10}} axisLine={false} tickLine={false} tickFormatter={v=>fK(v)} width={46} domain={[dataMin => Math.min(dataMin, -50000000), 'auto']} allowDataOverflow={true} />
               <Tooltip content={<CT fmt="krw"/>}/>
               <ReferenceLine y={0} stroke={T.textDim} strokeDasharray="3 3"/>
               <Line type="monotone" dataKey="principal" name="투자원금" stroke={T.blue} strokeWidth={2} dot={false}/>
