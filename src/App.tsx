@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import * as recharts from "recharts";
 import Papa from "papaparse";
+import ReactMarkdown from 'react-markdown';
 
 const {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -1159,53 +1160,79 @@ function QaTab({ data, bp }) {
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
+
     const userText = input;
+    // 화면에 사용자 질문 먼저 띄우기
     setMessages(prev => [...prev, { role: "user", text: userText }]);
     setInput("");
     setLoading(true);
 
     const contextData = {
-      총요약: { 
-        총평가금액: SUMMARY.evalTotal, 
-        투자원금: SUMMARY.principal, 
-        누적배당: SUMMARY.cumDividend, 
-        총수익: SUMMARY.profit 
-      },
-      // 전체가 아닌 최근 6개월 데이터만 슬라이싱하여 전달
-      최근_12개월_추이: MONTHLY.slice(-6).map(m => ({ 
-        날짜: m.date, 총자산: m.assetTotal, 수익률: m.returnPct.toFixed(2)+"%" 
-      })),
-      보유종목: HOLDINGS.map(h => ({ 이름: h.name, 비중: h.weight.toFixed(1)+"%", 수익률: h.returnPct.toFixed(2)+"%" }))
+      summary: { eval: SUMMARY.evalTotal, profit: SUMMARY.profit, div: SUMMARY.cumDividend },
+      holdings: HOLDINGS.slice(0, 10).map(h => ({ n: h.name, r: h.returnPct.toFixed(1) + "%" }))
     };
 
+    // 기존 프롬프트 (수정 없이 그대로 사용)
     const systemPrompt = `
 # SYSTEM CONTEXT & PERSONA
-You are a **Senior Quantitative Investment Analyst**. Simpson is a data-driven HNW client aiming for retirement in 2030.
+You are a **Senior Quantitative Investment Analyst** at a global hedge fund. You are briefing a high-net-worth client (Nickname: Simpson) who is data-driven, prefers cold hard facts, and aims for early retirement in December 2030. 
+Your tone is professional, objective, and analytical.
+
+# INFORMATION RETRIEVAL & GROUNDING
+1. **Web Grounding Enabled**: For any queries regarding current stock prices (e.g., SPGI, Apple), market trends, or economic news, you MUST perform a real-time search.
+2. **Distinguish Data Sources**: Clearly separate "Internal Portfolio Data" from "Real-time Market Data".
+3. **Citations Required**: When providing real-time information, append the source name and a clickable Markdown link (e.g., [Source Name](URL)) at the end of the sentence or paragraph.
+
+# CLIENT PORTFOLIO DATA (STRICT ADHERENCE)
+- Current Portfolio Status: ${JSON.stringify(contextData)}
+- Total Capital Gain (시세차익): Total Profit minus Cumulative Dividend.
+- Total Earnings (총 번 금액): Total Profit (Current Value - Invested Principal).
+
+# OUTPUT STYLE & FORMATTING
+1. **Markdown Formatting**: Use **bold**, ### headings, and bullet points to make the response highly scannable.
+2. **Language**: Always respond in **Korean** (한국어).
 
 # OPERATIONAL GUIDELINES
-1. **Real-time Search**: Use web grounding for stock prices and market news. Provide Markdown links.
-2. **Analysis**: Distinguish between Portfolio Data and Market Data.
-3. **Format**: Use **bold**, ### headings, and tables. 
-4. **Language**: Respond in Korean.
-5. **Logic**: Total Earnings = Total Profit (Eval Total - Principal).
-
-Simpson's Portfolio: ${JSON.stringify(contextData)}
+- Provide a "Quantitative Opinion" at the end of each answer specifically regarding how the query affects Simpson's Top 10 holdings.
     `;
 
+    const MODEL_NAME = "gemini-2.5-flash"; 
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      // ★ 1. 기억 이식: 기존 대화 내역(messages)을 API 형식으로 변환 (인사말은 제외)
+      const chatHistory = messages
+        .filter(m => !m.text.includes("안녕하세요! Simpson님의 자산 현황"))
+        .map(m => ({
+          role: m.role,
+          parts: [{ text: m.text }]
+        }));
+      
+      // 방금 입력한 새로운 질문 추가
+      chatHistory.push({ role: "user", parts: [{ text: userText }] });
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n질문: ${userText}` }] }]
+          // ★ 2. 최신 API 규격 적용: 시스템 지시어를 별도 속성으로 완전히 분리
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          // ★ 3. 단일 질문이 아닌 '전체 대화 기록(chatHistory)'을 전송
+          contents: chatHistory, 
+          tools: [{ googleSearch: {} }] 
         })
       });
+
       const resData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(resData.error?.message || "연결 실패");
+      }
+
       const reply = resData.candidates[0].content.parts[0].text;
       setMessages(prev => [...prev, { role: "model", text: reply }]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: "model", text: "통신 오류가 발생했습니다. 환경 변수를 확인해주세요." }]);
+      setMessages(prev => [...prev, { role: "model", text: `시스템 알림: ${error.message}` }]);
     } finally {
       setLoading(false);
     }
@@ -1240,11 +1267,37 @@ Simpson's Portfolio: ${JSON.stringify(contextData)}
                 fontSize: 14,
                 lineHeight: 1.6,
                 textAlign: "left", // ★ 좌측 정렬 강제
-                whiteSpace: "pre-wrap",
+                // whiteSpace: "pre-wrap" <- 마크다운 적용을 위해 이 줄은 삭제했습니다.
                 borderBottom: m.role === "user" ? `1px dashed ${T.border}` : "none",
                 marginBottom: m.role === "user" ? 10 : 0
               }}>
-                {m.role === "user" ? `💬 Simpson: ${m.text}` : m.text}
+                
+                {/* ★ 여기가 핵심 수정 부분입니다 ★ */}
+                {m.role === "user" ? (
+                  `💬 Simpson: ${m.text}`
+                ) : (
+                  <ReactMarkdown
+                    components={{
+                      // 1. 일반 단락 (p): 아래쪽에 16px 여백 추가로 단락 구분
+                      p: ({node, ...props}) => <p style={{ marginBottom: "16px", lineHeight: "1.7" }} {...props} />,
+                      
+                      // 2. 소제목 (h3): 위아래 여백을 넉넉히 주고 글씨를 키움
+                      h3: ({node, ...props}) => <h3 style={{ marginTop: "28px", marginBottom: "12px", fontSize: "16px", fontWeight: "bold", color: T.text }} {...props} />,
+                      
+                      // 3. 리스트 (ul): 왼쪽으로 24px 들여쓰기 적용
+                      ul: ({node, ...props}) => <ul style={{ paddingLeft: "24px", marginBottom: "16px", listStyleType: "disc" }} {...props} />,
+                      
+                      // 4. 리스트 아이템 (li): 항목 간 8px 여백 추가
+                      li: ({node, ...props}) => <li style={{ marginBottom: "8px", lineHeight: "1.6" }} {...props} />,
+                      
+                      // 5. 강조 (strong): 볼드체를 더 눈에 띄게 (필요시 색상 추가 가능)
+                      strong: ({node, ...props}) => <strong style={{ fontWeight: "800" }} {...props} />
+                    }}
+                  >
+                    {m.text}
+                  </ReactMarkdown>
+                )}
+                
               </div>
             </div>
           ))}
@@ -1296,6 +1349,7 @@ Simpson's Portfolio: ${JSON.stringify(contextData)}
       </div>
     </div>
   );
+  
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
