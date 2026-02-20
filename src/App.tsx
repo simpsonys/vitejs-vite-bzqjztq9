@@ -1165,7 +1165,16 @@ function QaTab({ data, bp }) {
     setLoading(true);
 
     const contextData = {
-      총요약: { 총평가금액: SUMMARY.evalTotal, 투자원금: SUMMARY.principal, 누적배당: SUMMARY.cumDividend, 총수익: SUMMARY.profit },
+      총요약: { 
+        총평가금액: SUMMARY.evalTotal, 
+        투자원금: SUMMARY.principal, 
+        누적배당: SUMMARY.cumDividend, 
+        총수익: SUMMARY.profit 
+      },
+      // 전체가 아닌 최근 6개월 데이터만 슬라이싱하여 전달
+      최근_12개월_추이: MONTHLY.slice(-6).map(m => ({ 
+        날짜: m.date, 총자산: m.assetTotal, 수익률: m.returnPct.toFixed(2)+"%" 
+      })),
       보유종목: HOLDINGS.map(h => ({ 이름: h.name, 비중: h.weight.toFixed(1)+"%", 수익률: h.returnPct.toFixed(2)+"%" }))
     };
 
