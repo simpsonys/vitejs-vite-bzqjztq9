@@ -392,7 +392,6 @@ function ErrorScreen({ message, onRetry }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  탭 컴포넌트들
 // ─────────────────────────────────────────────────────────────────────────────
-
 // ─────────────────────────────────────────────────────────────────────────────
 //  종합(Overview) 탭 컴포넌트
 // ─────────────────────────────────────────────────────────────────────────────
@@ -401,10 +400,18 @@ function OverviewTab({ data, bp }) {
   const isDesktop = bp === "desktop";
   const isWide    = bp !== "mobile";
   const pad   = isDesktop ? "0 28px 48px" : "0 16px 100px";
-  const chartH = isDesktop ? 260 : isWide ? 220 : 190;
+  const chartH = isDesktop ? 340 : isWide ? 280 : 250;
 
   // TOP 10 데이터 분리
   const top10 = HOLDINGS.slice(0, 10);
+
+  // 상단 4개 요약 카드용 데이터
+  const stats = [
+    { label: "현재 수익률", value: fP(SUMMARY.returnPct),       color: T.accent },
+    { label: "수익률 고점", value: fP(SUMMARY.highReturnPct),    color: T.accent, sub: "고점대비 "+fP(SUMMARY.fromHighPct) },
+    { label: "누적 배당",   value: fK(SUMMARY.cumDividend)+"원", color: T.orange },
+    { label: "시세차익",    value: fK(SUMMARY.cumCapGain)+"원",  color: T.blue }
+  ];
 
   return (
     <div style={{ padding:pad }}>
@@ -436,12 +443,15 @@ function OverviewTab({ data, bp }) {
         </div>
       </div>
 
-      {/* Stat grid */}
+      {/* ── ★ 변경점: StatCard 대신 직접 높이와 여백을 최소화한 커스텀 카드 적용 ── */}
       <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(4,1fr)":"repeat(2,1fr)", gap:10, marginBottom:16 }}>
-        <StatCard label="현재 수익률" value={fP(SUMMARY.returnPct)}       color={T.accent}  large={isDesktop}/>
-        <StatCard label="수익률 고점" value={fP(SUMMARY.highReturnPct)}    color={T.accent}  sub={"고점대비 "+fP(SUMMARY.fromHighPct)} large={isDesktop}/>
-        <StatCard label="누적 배당"   value={fK(SUMMARY.cumDividend)+"원"} color={T.orange}  large={isDesktop}/>
-        <StatCard label="시세차익"    value={fK(SUMMARY.cumCapGain)+"원"}  color={T.blue}    large={isDesktop}/>
+        {stats.map((s, i) => (
+          <div key={i} style={{ background:T.card, borderRadius:12, padding:"12px 14px", border:`1px solid ${T.border}`, display:"flex", flexDirection:"column", justifyContent:"center" }}>
+            <p style={{ color:T.textDim, fontSize:11, margin:"0 0 4px" }}>{s.label}</p>
+            <p style={{ color:s.color, fontSize:16, fontWeight:700, margin:0, fontFamily:"'IBM Plex Mono',monospace" }}>{s.value}</p>
+            {s.sub && <p style={{ color:T.textSec, fontSize:10, margin:"4px 0 0" }}>{s.sub}</p>}
+          </div>
+        ))}
       </div>
 
       {/* Chart + Top10 */}
@@ -483,14 +493,12 @@ function OverviewTab({ data, bp }) {
           </ResponsiveContainer>
         </div>
 
-        {/* ── ★ 반응형 2단 그리드가 적용된 TOP 10 영역 ── */}
+        {/* TOP 10 영역 */}
         <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
           <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 12px" }}>TOP 10 종목</p>
           
-          {/* 창이 넓을 때(isWide) 2단, 좁을 때 1단으로 자동 변경 */}
           <div style={{ display:"grid", gridTemplateColumns:isWide?"1fr 1fr":"1fr", columnGap:24 }}>
             {top10.map((h, i) => {
-              // 그리드가 1단일 때와 2단일 때를 구분하여 맨 아래줄의 밑줄(borderBottom)을 지움
               const isLastRow = isWide ? (i + 2 >= top10.length) : (i === top10.length - 1);
               
               return (
