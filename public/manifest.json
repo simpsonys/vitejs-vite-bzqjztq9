@@ -1,0 +1,15 @@
+{
+    "short_name": "Finance",
+    "name": "Simpson's Finance Report",
+    "icons": [
+      {
+        "src": "https://cdn-icons-png.flaticon.com/512/2933/2933116.png",
+        "type": "image/png",
+        "sizes": "512x512"
+      }
+    ],
+    "start_url": "/",
+    "background_color": "#0E1319",
+    "display": "standalone",
+    "theme_color": "#0E1319"
+  }
