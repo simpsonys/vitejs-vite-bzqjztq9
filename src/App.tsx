@@ -353,25 +353,14 @@ function OverviewTab({ data, bp, onAskAi }) {
 
   const stats = isMobile ? allStats.slice(2, 4) : allStats;
 
-  // ─────────────────────────────────────────────────────────────
-  // ★ 차트 Y축 1억 단위 자동 계산 로직 ★
-  // ─────────────────────────────────────────────────────────────
-  // 데이터 중 가장 높은 값과 낮은 값을 찾습니다 (0 포함)
   const maxVal = Math.max(...MONTHLY.map(m => Math.max(m.principal, m.evalTotal, m.profit, 0)));
   const minVal = Math.min(...MONTHLY.map(m => Math.min(m.principal, m.evalTotal, m.profit, 0))); 
-
-  // 자산이 계속 불어나서 15억을 넘어가면 2억 단위로 넓히고, 그 전까지는 무조건 1억 단위로 맞춥니다.
   const tickStep = maxVal > 1500000000 ? 200000000 : 100000000; 
-
   const yMin = Math.floor(minVal / tickStep) * tickStep;
   const yMax = Math.ceil(maxVal / tickStep) * tickStep;
-  
   const yTicks = [];
-  for (let i = yMin; i <= yMax; i += tickStep) {
-    yTicks.push(i); // [ -1억, 0, 1억, 2억, 3억 ... ] 형태로 배열 생성
-  }
+  for (let i = yMin; i <= yMax; i += tickStep) yTicks.push(i);
 
-  // 전체 종목 정렬 로직 (이전과 동일)
   const holdingsWithRank = HOLDINGS.map((h, i) => ({ ...h, originalRank: i + 1 }));
   const handleSort = (key) => {
     let direction = 'desc';
@@ -379,6 +368,7 @@ function OverviewTab({ data, bp, onAskAi }) {
     else if (sortConfig.key !== key && (key === 'originalRank' || key === 'name' || key === 'type')) direction = 'asc';
     setSortConfig({ key, direction });
   };
+  
   const sortedHoldings = [...holdingsWithRank].sort((a, b) => {
     let aVal = a[sortConfig.key];
     let bVal = b[sortConfig.key];
@@ -387,6 +377,7 @@ function OverviewTab({ data, bp, onAskAi }) {
     if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
     return 0;
   });
+
   const renderSortIcon = (key) => {
     if (sortConfig.key !== key) return <span style={{ opacity: 0.3, fontSize: 10, marginLeft: 4 }}>↕</span>;
     return <span style={{ color: T.accent, fontSize: 10, marginLeft: 4 }}>{sortConfig.direction === 'asc' ? "▲" : "▼"}</span>;
@@ -395,7 +386,6 @@ function OverviewTab({ data, bp, onAskAi }) {
 
   return (
     <div style={{ padding:pad }}>
-      {/* 상단 4개 요약 통계 */}
       <div style={{ background:"linear-gradient(145deg,#131B26,#0E1319)", borderRadius:20, padding:isDesktop?"28px":"24px 20px", marginBottom:16, border:`1px solid ${T.border}`, position:"relative", overflow:"hidden" }}>
         <div style={{ position:"absolute", top:-30, right:-30, width:150, height:150, borderRadius:"50%", background:T.accentGlow, filter:"blur(40px)" }}/>
         <p style={{ color:T.textSec, fontSize:isDesktop?14:12, margin:"0 0 3px", fontWeight:500 }}>총 평가금액</p>
@@ -423,7 +413,6 @@ function OverviewTab({ data, bp, onAskAi }) {
         </div>
       </div>
 
-      {/* AI 질문 박스 */}
       <div style={{ marginBottom: 16, padding: "6px 8px 6px 16px", background: T.surface, borderRadius: 12, border: `1px solid ${T.accent}50`, display: "flex", alignItems: "center", gap: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
         <span style={{ fontSize: 22, flexShrink: 0 }}>🤖</span>
         <input 
@@ -460,12 +449,8 @@ function OverviewTab({ data, bp, onAskAi }) {
           </div>
           <ResponsiveContainer width="100%" height={chartH}>
             <ComposedChart data={MONTHLY}>
-              {/* ★ 변경점 1: 배경 점선(Grid) 색상을 훨씬 눈에 띄게 (불투명도 0.25) */}
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.25)"/>
-              
               <XAxis dataKey="date" tick={{fill:T.textSec,fontSize:10,fontWeight:600}} tickFormatter={v=>v.slice(2)} axisLine={false} tickLine={false} interval={Math.floor(MONTHLY.length/6)}/>
-              
-              {/* ★ 변경점 2: Y축에 계산된 1억 단위 yTicks 배열을 강제로 주입! */}
               <YAxis 
                 tick={{fill:T.textSec,fontSize:10,fontWeight:600}} 
                 axisLine={false} 
@@ -477,10 +462,7 @@ function OverviewTab({ data, bp, onAskAi }) {
                 interval={0}
               />
               <Tooltip content={<CT fmt="krw"/>}/>
-              
-              {/* ★ 변경점 3: 0 (기준선) 라인을 두껍고 선명하게 표시 */}
               <ReferenceLine y={0} stroke="rgba(255,255,255,0.5)" strokeWidth={1.5} strokeDasharray="3 3"/>
-              
               <Line type="monotone" dataKey="principal" name="투자원금" stroke={T.blue} strokeWidth={2} dot={false} isAnimationActive={false} />
               <Line type="monotone" dataKey="evalTotal" name="평가총액" stroke={T.red} strokeWidth={2} dot={false} isAnimationActive={false} />
               <Line type="monotone" dataKey="profit" name="수익금액" stroke={T.orange} strokeWidth={2} dot={false} isAnimationActive={false} />
@@ -515,7 +497,9 @@ function OverviewTab({ data, bp, onAskAi }) {
         </div>
       </div>
 
-      {/* 숨겨진 전체 종목 페이지 */}
+      {/* ─────────────────────────────────────────────────────────────
+          ★ 수정된 숨겨진 전체 종목 페이지 (풀스크린 모달 표) ★
+         ───────────────────────────────────────────────────────────── */}
       {showAllHoldings && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
@@ -532,15 +516,17 @@ function OverviewTab({ data, bp, onAskAi }) {
             </button>
           </div>
           <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-            <div style={{ minWidth: 600 }}> 
+            <div style={{ minWidth: 680 }}> {/* 매입금액 열이 추가되어 너비 약간 증가 */}
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
                   <tr>
                     <th onClick={() => handleSort('originalRank')} style={{ ...thStyle }}>순위{renderSortIcon('originalRank')}</th>
-                    <th onClick={() => handleSort('name')} style={{ ...thStyle }}>종목명{renderSortIcon('name')}</th>
+                    {/* ★ 종목명 헤더 가운데 정렬 추가 */}
+                    <th onClick={() => handleSort('name')} style={{ ...thStyle, textAlign: "center" }}>종목명{renderSortIcon('name')}</th>
                     <th onClick={() => handleSort('type')} style={{ ...thStyle }}>국가/분류{renderSortIcon('type')}</th>
                     <th onClick={() => handleSort('weight')} style={{ ...thStyle, textAlign: "right" }}>비중{renderSortIcon('weight')}</th>
                     <th onClick={() => handleSort('evalAmount')} style={{ ...thStyle, textAlign: "right" }}>평가금액{renderSortIcon('evalAmount')}</th>
+                    <th onClick={() => handleSort('buyAmount')} style={{ ...thStyle, textAlign: "right" }}>매입금액{renderSortIcon('buyAmount')}</th>
                     <th onClick={() => handleSort('returnPct')} style={{ ...thStyle, textAlign: "right" }}>수익률{renderSortIcon('returnPct')}</th>
                   </tr>
                 </thead>
@@ -548,10 +534,13 @@ function OverviewTab({ data, bp, onAskAi }) {
                   {sortedHoldings.map((h, i) => (
                     <tr key={i} style={{ borderBottom: `1px solid ${T.border}40` }}>
                       <td style={{ padding: "12px 8px", color: T.textSec, fontSize: 13, fontWeight: 700 }}>{h.originalRank}</td>
-                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 14, fontWeight: 600 }}>{h.name}</td>
+                      {/* ★ 종목명 셀 가운데 정렬 추가 */}
+                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 14, fontWeight: 600, textAlign: "center" }}>{h.name}</td>
                       <td style={{ padding: "12px 8px", color: T.textDim, fontSize: 12 }}>{h.country} · {h.type}</td>
                       <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{h.weight.toFixed(1)}%</td>
                       <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(h.evalAmount)}원</td>
+                      {/* ★ 매입금액 데이터 셀 추가 */}
+                      <td style={{ padding: "12px 8px", color: T.textDim, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(h.buyAmount)}원</td>
                       <td style={{ padding: "12px 8px", color: h.returnPct >= 0 ? T.accent : T.red, fontSize: 13, fontWeight: 700, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>
                         {fP(h.returnPct)}
                       </td>
