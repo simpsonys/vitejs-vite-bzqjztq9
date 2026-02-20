@@ -395,9 +395,9 @@ function OverviewTab({ data, bp, onAskAi }) {
         <button 
           onClick={() => quickQuestion.trim() && onAskAi && onAskAi(quickQuestion)}
           style={{ 
-            background: T.accent, 
+            background: "transparent", 
             color: "#000", 
-            border: "none", 
+            border: "1px solid #5A6272", 
             padding: "8px 14px", 
             borderRadius: 8, 
             fontWeight: 700, 
@@ -1191,7 +1191,7 @@ Your tone is professional, objective, and analytical.
           <button 
             onClick={handleSend}
             disabled={loading}
-            style={{ background: T.accent, color: "#000", border: "none", padding: "0 20px", borderRadius: 10, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.5 : 1, fontSize: baseFontSize - 1 }} // ★ 전송 버튼 글씨 크기 확대
+            style={{ background: "transparent", color: "#000", border: "1px solid #5A6272", padding: "0 20px", borderRadius: 10, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.5 : 1, fontSize: baseFontSize - 1 }} // ★ 전송 버튼 글씨 크기 확대
           >
             🚀
           </button>
