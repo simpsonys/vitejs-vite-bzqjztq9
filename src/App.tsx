@@ -236,12 +236,29 @@ const fP = (v) => {
 };
 
 function useBP() {
-  const [w, setW] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
+  // ★ FIX 1: visualViewport로 폴드폰 화면 전환을 정확하게 감지 + 디바운스로 안정화
+  const getW = () =>
+    typeof window !== "undefined"
+      ? (window.visualViewport?.width ?? window.innerWidth)
+      : 1024;
+
+  const [w, setW] = useState(getW);
+
   useEffect(() => {
-    const fn = () => setW(window.innerWidth);
+    let timer;
+    const fn = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => setW(getW()), 80);
+    };
     window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
+    window.visualViewport?.addEventListener("resize", fn);
+    return () => {
+      window.removeEventListener("resize", fn);
+      window.visualViewport?.removeEventListener("resize", fn);
+      clearTimeout(timer);
+    };
   }, []);
+
   if (w >= 1024) return "desktop";
   if (w >= 600)  return "tablet";
   return "mobile";
@@ -1180,7 +1197,7 @@ Your tone is professional, objective, and analytical.
           {loading && <div style={{ color: T.textDim, fontSize: baseFontSize - 2, textAlign: "left" }}>데이터 분석 중... ⏳</div>}
         </div>
 
-        <div style={{ padding: "12px 16px", background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", gap: 10, paddingBottom: isDesktop ? 12 : "calc(12px + env(safe-area-inset-bottom))" }}>
+        <div style={{ padding: "12px 16px", background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", gap: 10, paddingBottom: isDesktop ? 12 : "calc(20px + env(safe-area-inset-bottom, 10px))" }}>
           <input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -1254,17 +1271,20 @@ export default function App() {
   const bp = useBP();
   const isDesktop = bp === "desktop";
 
-  // ★ 핵심: 화면 크기(브레이크포인트)가 바뀔 때마다 탭을 강제로 새로고침하게 만드는 키값
-  const [resizeKey, setResizeKey] = useState(0);
+  // ★ FIX 4: key={resizeKey} 강제 remount 방식 제거 → 깜빡임 및 레이아웃 깨짐 원인 제거
 
-// App 컴포넌트 내부의 useEffect를 아래와 같이 수정해 보세요.
-useEffect(() => {
-  // 폴드 전환 시 브라우저가 크기를 완전히 확정할 때까지 100ms 정도 대기 후 갱신
-  const timer = setTimeout(() => {
-    setResizeKey(prev => prev + 1);
-  }, 100);
-  return () => clearTimeout(timer);
-}, [bp]);
+  // ★ FIX 2: 모바일 헤더 높이를 ResizeObserver로 실시간 측정
+  const headerRef = useRef(null);
+  const [headerH, setHeaderH] = useState(56);
+
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const obs = new ResizeObserver(entries => {
+      setHeaderH(entries[0].contentRect.height);
+    });
+    obs.observe(headerRef.current);
+    return () => obs.disconnect();
+  }, [bp]); // bp가 바뀔 때마다 헤더 높이를 다시 측정
 
   // ★ 1. Q&A 검색어 상태 
   const [qaInput, setQaInput] = useState(""); 
@@ -1333,8 +1353,8 @@ useEffect(() => {
   if (status === "error")   return <ErrorScreen message={errMsg} onRetry={loadData}/>;
 
   return (
-    // ★ 핵심 수정: 최상단 div에 key={resizeKey}를 추가하여 폴드 화면 전환 시 강제 재렌더링 유도
-    <div key={resizeKey} style={{ minHeight:"100vh", background:T.bg, fontFamily:"'IBM Plex Sans KR',sans-serif" }}>
+    // ★ FIX 4: key={resizeKey} 제거 → 화면 전환 시 불필요한 전체 remount 방지
+    <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'IBM Plex Sans KR',sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -1354,7 +1374,8 @@ useEffect(() => {
         </div>
       ) : (
         <div style={{ maxWidth:768, margin:"0 auto", position:"relative" }}>
-          <div style={{ padding:"14px 18px", position:"sticky", top:0, background:`${T.bg}ee`, backdropFilter:"blur(20px)", zIndex:10, borderBottom:`1px solid ${T.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          {/* ★ FIX 2: ref 추가 → 헤더 높이를 ResizeObserver로 동적 측정 */}
+          <div ref={headerRef} style={{ padding:"14px 18px", position:"sticky", top:0, background:`${T.bg}ee`, backdropFilter:"blur(20px)", zIndex:10, borderBottom:`1px solid ${T.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
               <h1 style={{ color:T.text, fontSize:17, fontWeight:700, margin:0 }}>{titles[tab]}</h1>
               <p style={{ color:T.textDim, fontSize:9, margin:"1px 0 0" }}>SIMPSONYS FINANCE REPORT</p>
@@ -1371,10 +1392,11 @@ useEffect(() => {
             </div>
           </div>
           
-          {/* ★ 핵심 수정: 모바일 paddingTop을 12로 조정 */}
-          <div style={{ paddingTop:12 }}>{renderTab()}</div>
+          {/* ★ FIX 2: paddingTop을 측정된 headerH 기반으로 동적 설정 / paddingBottom은 하단 탭바 높이 확보 */}
+          <div style={{ paddingTop: headerH, paddingBottom: 80 }}>{renderTab()}</div>
 
-          <div style={{ position:"fixed", bottom:0, left:0, right:0, background:`${T.bg}f8`, backdropFilter:"blur(20px)", borderTop:`1px solid ${T.border}`, display:"flex", padding:"6px 0 env(safe-area-inset-bottom,6px)", zIndex:20 }}>
+          {/* ★ FIX 3: left/right 대신 left:50% + translateX(-50%) + maxWidth로 컨테이너와 정렬 맞춤 */}
+          <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:768, background:`${T.bg}f8`, backdropFilter:"blur(20px)", borderTop:`1px solid ${T.border}`, display:"flex", padding:"6px 0 env(safe-area-inset-bottom,6px)", zIndex:20 }}>
             {tabs.filter(t => !["overview","assets", "qa"].includes(t.id)).map(t => (
               <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, border:"none", background:"none" }}>
                 <span style={{ fontSize:18, opacity:tab===t.id?1:0.3 }}>{t.icon}</span>
