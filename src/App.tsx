@@ -324,8 +324,6 @@ function OverviewTab({ data, bp, onAskAi }) {
 
   const top10 = HOLDINGS.slice(0, 10);
   const stats = [
-    { label: "현재 수익률", value: fP(SUMMARY.returnPct),       color: T.accent },
-    { label: "수익률 고점", value: fP(SUMMARY.highReturnPct),    color: T.accent, sub: "고점대비 "+fP(SUMMARY.fromHighPct) },
     { label: "누적 배당",   value: fK(SUMMARY.cumDividend)+"원", color: T.orange },
     { label: "시세차익",    value: fK(SUMMARY.cumCapGain)+"원",  color: T.blue }
   ];
@@ -359,20 +357,51 @@ function OverviewTab({ data, bp, onAskAi }) {
         </div>
       </div>
 
-      <div style={{ marginBottom: 16, padding: "12px 20px", background: T.surface, borderRadius: 12, border: `1px solid ${T.accent}50`, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
-        <span style={{ fontSize: 20 }}>🤖</span>
+      {/* ★ AI 질문 박스 수정 (폴드 화면 뚫림 방지 적용) */}
+      <div style={{ 
+        marginBottom: 16, 
+        padding: "6px 8px 6px 16px", // 우측 패딩을 줄여 버튼이 착 달라붙게 수정
+        background: T.surface, 
+        borderRadius: 12, 
+        border: `1px solid ${T.accent}50`, 
+        display: "flex", 
+        alignItems: "center", 
+        gap: 10, 
+        boxShadow: "0 4px 12px rgba(0,0,0,0.2)" 
+      }}>
+        <span style={{ fontSize: 22, flexShrink: 0 }}>🤖</span>
         <input 
           value={quickQuestion}
           onChange={(e) => setQuickQuestion(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="오늘 SPGI 주가 어때?"
-          style={{ flex: 1, background: "transparent", border: "none", color: T.text, fontSize: 16, outline: "none" }} // 폰트 16px로 증가
+          style={{ 
+            flex: 1, 
+            minWidth: 0, // ★ 핵심: 플렉스 박스가 영역을 뚫고 나가는 것을 방지
+            background: "transparent", 
+            border: "none", 
+            color: T.text, 
+            fontSize: 16, 
+            outline: "none" 
+          }}
         />
         <button 
           onClick={() => quickQuestion.trim() && onAskAi && onAskAi(quickQuestion)}
-          style={{ background: T.accent, color: "#000", border: "none", padding: "8px 12px", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 18, display:"flex", alignItems:"center", justifyContent:"center" }}
+          style={{ 
+            background: T.accent, 
+            color: "#000", 
+            border: "none", 
+            padding: "8px 14px", 
+            borderRadius: 8, 
+            fontWeight: 700, 
+            cursor: "pointer", 
+            fontSize: 18, 
+            display:"flex", 
+            alignItems:"center", 
+            justifyContent:"center",
+            flexShrink: 0 // ★ 핵심: 버튼 크기가 찌그러지지 않게 방어
+          }}
         >
-          {/* 텍스트 대신 로켓 아이콘 적용 */}
           🚀
         </button>
       </div>
