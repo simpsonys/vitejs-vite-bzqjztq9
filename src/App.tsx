@@ -1007,8 +1007,12 @@ function QaTab({ data, bp, input, setInput }) {
   const isDesktop = bp === "desktop";
   const pad = isDesktop ? "0 28px 48px" : "0 0 0"; 
 
+  // ★ 모바일일 때 글씨 크기를 전반적으로 키웁니다.
+  const baseFontSize = isDesktop ? 15 : 17; 
+  const titleFontSize = isDesktop ? "18px" : "20px";
+
   const [messages, setMessages] = useState([
-    { role: "model", text: "안녕하세요! Simpson님의 자산 현황이나 특정 종목에 대해 무엇이든 물어보세요. 🤖\n(예: '작년 12월 총자산은 얼마였어?', 'SPGI 오늘 주가는 어때?')" }
+    { role: "model", text: "안녕하세요! Simpson님의 자산 현황이나 특정 종목에 대해 무엇이든 물어보세요. 🤖" }
   ]);
   
   // ❌ 주의: 여기에 있던 const [input, setInput] = useState(""); 코드는 완전히 삭제되었습니다!
@@ -1106,13 +1110,15 @@ Your tone is professional, objective, and analytical.
     <div style={{ padding: pad, display: "flex", flexDirection: "column", height: isDesktop ? "calc(100vh - 120px)" : "calc(100vh - 125px)", background: T.bg }}>
       <div style={{ background: T.card, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", borderTop: isDesktop ? `1px solid ${T.border}` : "none", borderRadius: isDesktop ? 16 : 0 }}>
         
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 24 }}>
           {messages.map((m, i) => (
             <div key={i} style={{ alignSelf: "flex-start", width: "100%" }}>
               <div style={{ 
                 color: m.role === "user" ? T.accent : T.text, 
                 padding: m.role === "user" ? "10px 0" : "0",
-                fontSize: 14, lineHeight: 1.6, textAlign: "left",
+                fontSize: baseFontSize, // ★ 기본 폰트 크기 적용
+                lineHeight: 1.6, 
+                textAlign: "left",
                 borderBottom: m.role === "user" ? `1px dashed ${T.border}` : "none",
                 marginBottom: m.role === "user" ? 10 : 0
               }}>
@@ -1121,11 +1127,12 @@ Your tone is professional, objective, and analytical.
                 ) : (
                   <ReactMarkdown
                     components={{
-                      p: ({node, ...props}) => <p style={{ marginBottom: "16px", lineHeight: "1.7" }} {...props} />,
-                      h3: ({node, ...props}) => <h3 style={{ marginTop: "28px", marginBottom: "12px", fontSize: "16px", fontWeight: "bold", color: T.text }} {...props} />,
+                      // ★ 마크다운 요소별 글씨 크기 대폭 확대
+                      p: ({node, ...props}) => <p style={{ marginBottom: "16px", lineHeight: "1.7", fontSize: `${baseFontSize}px` }} {...props} />,
+                      h3: ({node, ...props}) => <h3 style={{ marginTop: "30px", marginBottom: "14px", fontSize: titleFontSize, fontWeight: "bold", color: T.text }} {...props} />,
                       ul: ({node, ...props}) => <ul style={{ paddingLeft: "24px", marginBottom: "16px", listStyleType: "disc" }} {...props} />,
-                      li: ({node, ...props}) => <li style={{ marginBottom: "8px", lineHeight: "1.6" }} {...props} />,
-                      strong: ({node, ...props}) => <strong style={{ fontWeight: "800" }} {...props} />
+                      li: ({node, ...props}) => <li style={{ marginBottom: "10px", lineHeight: "1.7", fontSize: `${baseFontSize}px` }} {...props} />,
+                      strong: ({node, ...props}) => <strong style={{ fontWeight: "800", color: T.text }} {...props} />
                     }}
                   >
                     {m.text}
@@ -1134,7 +1141,7 @@ Your tone is professional, objective, and analytical.
               </div>
             </div>
           ))}
-          {loading && <div style={{ color: T.textDim, fontSize: 13, textAlign: "left" }}>데이터 분석 중... ⏳</div>}
+          {loading && <div style={{ color: T.textDim, fontSize: baseFontSize - 2, textAlign: "left" }}>데이터 분석 중... ⏳</div>}
         </div>
 
         <div style={{ padding: "12px 16px", background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", gap: 10, paddingBottom: isDesktop ? 12 : "calc(12px + env(safe-area-inset-bottom))" }}>
@@ -1143,12 +1150,12 @@ Your tone is professional, objective, and analytical.
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="질문을 입력하세요..."
-            style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.text, padding: "12px", borderRadius: 10, outline: "none", fontSize: 14 }}
+            style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.text, padding: "12px 14px", borderRadius: 10, outline: "none", fontSize: baseFontSize }} // ★ 입력창 글씨 크기 확대
           />
           <button 
             onClick={handleSend}
             disabled={loading}
-            style={{ background: T.accent, color: "#000", border: "none", padding: "0 18px", borderRadius: 10, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.5 : 1 }}
+            style={{ background: T.accent, color: "#000", border: "none", padding: "0 20px", borderRadius: 10, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.5 : 1, fontSize: baseFontSize - 1 }} // ★ 전송 버튼 글씨 크기 확대
           >
             전송
           </button>
