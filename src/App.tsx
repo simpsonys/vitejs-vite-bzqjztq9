@@ -1075,40 +1075,50 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
   // ★ 핵심 추가: 자동 전송이 두 번 실행되는 것을 막는 방어막(Flag)
   const hasAutoSent = useRef(false);
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
+  const handleSend = async (overrideInput) => {
+    // ★ 버튼 클릭 이벤트(객체)가 들어올 경우를 대비한 안전장치 추가
+    const textToSend = typeof overrideInput === "string" ? overrideInput : input;
+    
+    if (!textToSend || !textToSend.trim() || loading) return;
 
-    const userText = input;
-    setMessages(prev => [...prev, { role: "user", text: userText }]);
+    setMessages(prev => [...prev, { role: "user", text: textToSend }]);
     setInput("");
     setLoading(true);
 
-    const contextData = {
-      summary: { eval: SUMMARY.evalTotal, profit: SUMMARY.profit, div: SUMMARY.cumDividend },
-      holdings: HOLDINGS.slice(0, 10).map(h => ({ n: h.name, r: h.returnPct.toFixed(1) + "%" }))
+    const currentSummary = {
+      eval: Math.round(SUMMARY.evalTotal / 10000),
+      prin: Math.round(SUMMARY.principal / 10000),
+      div: Math.round(SUMMARY.cumDividend / 10000)
     };
 
+    const historyData = MONTHLY.map(m => 
+      `${m.date}: ${Math.round(m.principal / 10000)}/${Math.round(m.evalTotal / 10000)}`
+    );
+
+    const holdingsData = HOLDINGS.map(h => 
+      `${h.name}: ${Math.round(h.evalAmount / 10000)}/${h.returnPct.toFixed(1)}%`
+    );
+
     const systemPrompt = `
-# SYSTEM CONTEXT & PERSONA
-You are a **Senior Quantitative Investment Analyst** at a global hedge fund. You are briefing a high-net-worth client (Nickname: SimpsonYS) who is data-driven, prefers cold hard facts, and aims for early retirement in December 2030. 
-Your tone is professional, objective, and analytical.
+You are a Senior Quantitative Investment Analyst briefing your client, SimpsonYS. Respond professionally in Korean.
 
-# INFORMATION RETRIEVAL & GROUNDING
-1. **Web Grounding Enabled**: For any queries regarding current stock prices (e.g., SPGI, Apple), market trends, or economic news, you MUST perform a real-time search.
-2. **Distinguish Data Sources**: Clearly separate "Internal Portfolio Data" from "Real-time Market Data".
-3. **Citations Required**: When providing real-time information, append the source name and a clickable Markdown link (e.g., [Source Name](URL)) at the end of the sentence or paragraph.
+# PORTFOLIO DATA (All currency values are in '만원' - 10,000 KRW)
 
-# CLIENT PORTFOLIO DATA (STRICT ADHERENCE)
-- Current Portfolio Status: ${JSON.stringify(contextData)}
-- Total Capital Gain (시세차익): Total Profit minus Cumulative Dividend.
-- Total Earnings (총 번 금액): Total Profit (Current Value - Invested Principal).
+1. [Current Status] 
+- Principal: ${currentSummary.prin}만원
+- Total Evaluation: ${currentSummary.eval}만원
+- Cumulative Dividend: ${currentSummary.div}만원
 
-# OUTPUT STYLE & FORMATTING
-1. **Markdown Formatting**: Use **bold**, ### headings, and bullet points to make the response highly scannable.
-2. **Language**: Always respond in **Korean** (한국어).
+2. [Monthly History (Format: "YY-MM: Principal/TotalEval")]
+${JSON.stringify(historyData)}
 
-# OPERATIONAL GUIDELINES
-- Provide a "Quantitative Opinion" at the end of each answer specifically regarding how the query affects SimpsonYS's Top 10 holdings.
+3. [All Holdings (Format: "Ticker: TotalEval/ReturnPct")]
+${JSON.stringify(holdingsData)}
+
+# RULES
+- Read the 'Monthly History' array to answer questions about past performance, principal amounts, or total evaluations at specific dates.
+- Calculate profit dynamically as (TotalEval - Principal).
+- Always format numbers naturally in Korean for the client (e.g., if data says 32000만원, output as 3억 2,000만원).
     `;
 
     const MODEL_NAME = "gemini-2.5-flash"; 
@@ -1116,13 +1126,11 @@ Your tone is professional, objective, and analytical.
 
     try {
       const chatHistory = messages
-        .filter(m => !m.text.includes("안녕하세요! SimpsonYS님의 자산 현황"))
-        .map(m => ({
-          role: m.role,
-          parts: [{ text: m.text }]
-        }));
+        .filter(m => !m.text.includes("안녕하세요"))
+        .map(m => ({ role: m.role, parts: [{ text: m.text }] }));
       
-      chatHistory.push({ role: "user", parts: [{ text: userText }] });
+      // ★ 문제의 원인 해결: userText를 textToSend로 확실하게 변경했습니다.
+      chatHistory.push({ role: "user", parts: [{ text: textToSend }] });
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`, {
         method: "POST",
@@ -1135,11 +1143,8 @@ Your tone is professional, objective, and analytical.
       });
 
       const resData = await response.json();
-
-      if (!response.ok) {
-        throw new Error(resData.error?.message || "연결 실패");
-      }
-
+      if (!response.ok) throw new Error(resData.error?.message || "API 연결 에러");
+      
       const reply = resData.candidates[0].content.parts[0].text;
       setMessages(prev => [...prev, { role: "model", text: reply }]);
     } catch (error) {
@@ -1147,7 +1152,7 @@ Your tone is professional, objective, and analytical.
     } finally {
       setLoading(false);
     }
-};
+  };
 
   // ─────────────────────────────────────────────────────────
   // ★ 핵심 수정: 방어막(hasAutoSent.current)이 false일 때만 한 번 전송
