@@ -1257,10 +1257,14 @@ export default function App() {
   // ★ 핵심: 화면 크기(브레이크포인트)가 바뀔 때마다 탭을 강제로 새로고침하게 만드는 키값
   const [resizeKey, setResizeKey] = useState(0);
 
-  useEffect(() => {
-    // 화면 크기가 바뀌면 key를 변경하여 하위 컴포넌트들을 다시 그리게 합니다.
+// App 컴포넌트 내부의 useEffect를 아래와 같이 수정해 보세요.
+useEffect(() => {
+  // 폴드 전환 시 브라우저가 크기를 완전히 확정할 때까지 100ms 정도 대기 후 갱신
+  const timer = setTimeout(() => {
     setResizeKey(prev => prev + 1);
-  }, [bp]);
+  }, 100);
+  return () => clearTimeout(timer);
+}, [bp]);
 
   // ★ 1. Q&A 검색어 상태 
   const [qaInput, setQaInput] = useState(""); 
