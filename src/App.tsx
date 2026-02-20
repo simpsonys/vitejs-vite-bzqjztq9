@@ -1012,7 +1012,7 @@ function QaTab({ data, bp, input, setInput }) {
   const titleFontSize = isDesktop ? "18px" : "20px";
 
   const [messages, setMessages] = useState([
-    { role: "model", text: "안녕하세요! Simpson님의 자산 현황이나 특정 종목에 대해 무엇이든 물어보세요. 🤖" }
+    { role: "model", text: "안녕하세요! SimpsonYS님의 자산 현황이나 특정 종목에 대해 무엇이든 물어보세요. 🤖" }
   ]);
   
   // ❌ 주의: 여기에 있던 const [input, setInput] = useState(""); 코드는 완전히 삭제되었습니다!
@@ -1037,7 +1037,7 @@ function QaTab({ data, bp, input, setInput }) {
 
     const systemPrompt = `
 # SYSTEM CONTEXT & PERSONA
-You are a **Senior Quantitative Investment Analyst** at a global hedge fund. You are briefing a high-net-worth client (Nickname: Simpson) who is data-driven, prefers cold hard facts, and aims for early retirement in December 2030. 
+You are a **Senior Quantitative Investment Analyst** at a global hedge fund. You are briefing a high-net-worth client (Nickname: SimpsonYS) who is data-driven, prefers cold hard facts, and aims for early retirement in December 2030. 
 Your tone is professional, objective, and analytical.
 
 # INFORMATION RETRIEVAL & GROUNDING
@@ -1055,7 +1055,7 @@ Your tone is professional, objective, and analytical.
 2. **Language**: Always respond in **Korean** (한국어).
 
 # OPERATIONAL GUIDELINES
-- Provide a "Quantitative Opinion" at the end of each answer specifically regarding how the query affects Simpson's Top 10 holdings.
+- Provide a "Quantitative Opinion" at the end of each answer specifically regarding how the query affects SimpsonYS's Top 10 holdings.
     `;
 
     const MODEL_NAME = "gemini-2.5-flash"; 
@@ -1063,7 +1063,7 @@ Your tone is professional, objective, and analytical.
 
     try {
       const chatHistory = messages
-        .filter(m => !m.text.includes("안녕하세요! Simpson님의 자산 현황"))
+        .filter(m => !m.text.includes("안녕하세요! SimpsonYS님의 자산 현황"))
         .map(m => ({
           role: m.role,
           parts: [{ text: m.text }]
@@ -1123,7 +1123,7 @@ Your tone is professional, objective, and analytical.
                 marginBottom: m.role === "user" ? 10 : 0
               }}>
                 {m.role === "user" ? (
-                  `💬 Simpson: ${m.text}`
+                  `💬 SimpsonYS: ${m.text}`
                 ) : (
                   <ReactMarkdown
                     components={{
@@ -1157,7 +1157,7 @@ Your tone is professional, objective, and analytical.
             disabled={loading}
             style={{ background: T.accent, color: "#000", border: "none", padding: "0 20px", borderRadius: 10, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.5 : 1, fontSize: baseFontSize - 1 }} // ★ 전송 버튼 글씨 크기 확대
           >
-            전송
+            🚀
           </button>
         </div>
       </div>
@@ -1175,7 +1175,7 @@ function Sidebar({ tab, setTab, tabs, summary }) {
   return (
     <div style={{ width:220, flexShrink:0, background:T.surface, borderRight:`1px solid ${T.border}`, display:"flex", flexDirection:"column", position:"sticky", top:0, height:"100vh", overflowY:"auto" }}>
       <div style={{ padding:"28px 24px 20px", borderBottom:`1px solid ${T.border}` }}>
-        <h1 style={{ color:T.text, fontSize:16, fontWeight:800, margin:0, letterSpacing:"-0.5px" }}>SIMPSON'S</h1>
+        <h1 style={{ color:T.text, fontSize:16, fontWeight:800, margin:0, letterSpacing:"-0.5px" }}>SIMPSONYS</h1>
         <p style={{ color:T.accent, fontSize:11, fontWeight:700, margin:"2px 0 0", letterSpacing:"1px" }}>FINANCE</p>
       </div>
 
@@ -1306,7 +1306,7 @@ export default function App() {
           <div style={{ padding:"14px 18px", position:"sticky", top:0, background:`${T.bg}ee`, backdropFilter:"blur(20px)", zIndex:10, borderBottom:`1px solid ${T.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
               <h1 style={{ color:T.text, fontSize:17, fontWeight:700, margin:0 }}>{titles[tab]}</h1>
-              <p style={{ color:T.textDim, fontSize:9, margin:"1px 0 0" }}>SIMPSON'S FINANCE REPORT</p>
+              <p style={{ color:T.textDim, fontSize:9, margin:"1px 0 0" }}>SIMPSONYS FINANCE REPORT</p>
             </div>
             <div style={{ display:"flex", gap:6 }}>
               {["assets", "qa"].map(id => {
