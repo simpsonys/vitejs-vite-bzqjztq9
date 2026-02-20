@@ -1143,129 +1143,143 @@ function HoldingsTab({ data, bp }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  Q&A (AI 비서) 탭 컴포넌트
 // ─────────────────────────────────────────────────────────────────────────────
+
 function QaTab({ data, bp }) {
   const { SUMMARY, MONTHLY, HOLDINGS } = data;
   const isDesktop = bp === "desktop";
-  const pad = isDesktop ? "0 28px 48px" : "0 16px 100px";
+  
+  // 패딩 조정: 데스크톱은 여백 유지, 모바일은 하단 탭과의 간격 제거
+  const pad = isDesktop ? "0 28px 48px" : "0 0 0"; 
 
-  // 채팅 메시지 상태 관리
   const [messages, setMessages] = useState([
     { role: "model", text: "안녕하세요! Simpson님의 자산 현황이나 특정 종목에 대해 무엇이든 물어보세요. 🤖\n(예: '작년 12월 총자산은 얼마였어?', 'SPGI 오늘 주가는 어때?')" }
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Gemini API 호출 함수
   const handleSend = async () => {
     if (!input.trim() || loading) return;
-
     const userText = input;
     setMessages(prev => [...prev, { role: "user", text: userText }]);
     setInput("");
     setLoading(true);
 
-    // AI에게 Simpson님의 데이터를 학습시킬 컨텍스트(배경지식) 구성
-    // (토큰 절약을 위해 꼭 필요한 데이터만 요약해서 전달)
     const contextData = {
-      총요약: { 총평가금액: SUMMARY.evalTotal, 투자원금: SUMMARY.principal, 누적배당: SUMMARY.cumDividend },
-      월별추이: MONTHLY.map(m => ({ 날짜: m.date, 총자산: m.assetTotal, 투자원금: m.principal, 누적배당: m.cumDividend })),
-      보유종목: HOLDINGS.map(h => ({ 이름: h.name, 평가액: h.evalAmount, 수익률: h.returnPct.toFixed(2)+"%", 비중: h.weight.toFixed(1)+"%" }))
+      총요약: { 총평가금액: SUMMARY.evalTotal, 투자원금: SUMMARY.principal, 누적배당: SUMMARY.cumDividend, 총수익: SUMMARY.profit },
+      보유종목: HOLDINGS.map(h => ({ 이름: h.name, 비중: h.weight.toFixed(1)+"%", 수익률: h.returnPct.toFixed(2)+"%" }))
     };
 
     const systemPrompt = `
 # SYSTEM CONTEXT & PERSONA
-You are a **Senior Quantitative Investment Analyst** at a global hedge fund. You are briefing a high-net-worth client (Nickname: Simpson) who is data-driven, prefers cold hard facts, and aims for early retirement in December 2030. 
-Your tone is professional, objective, and analytical. Avoid generic fluff.
-
-# CLIENT PORTFOLIO DATA (STRICT ADHERENCE)
-- Current Portfolio Status: ${JSON.stringify(contextData)}
-- Total Capital Gain (시세차익): Total Profit minus Cumulative Dividend.
-- Total Earnings (총 번 금액): Total Profit (which already includes capital gains and dividends in Simpson's sheet logic).
-- Top 10 Holdings: Use these as your primary reference for market-related advice.
+You are a **Senior Quantitative Investment Analyst**. Simpson is a data-driven HNW client aiming for retirement in 2030.
 
 # OPERATIONAL GUIDELINES
-1. **No Hallucinations**: If data is missing, state it clearly. Never invent numbers.
-2. **Contextual Analysis**: When asked about the market or specific stocks, always relate the impact back to Simpson's TOP 10 holdings and overall portfolio risk.
-3. **Calculation Accuracy**: 
-   - Ensure you distinguish between "Eval Total" (Current value) and "Total Profit" (Cumulative earnings).
-   - All currency should be formatted in '억' or '만' KRW for readability.
-4. **Professional Insight**: Provide a "Quantitative Opinion" at the end of each answer specifically regarding how the query affects the Top 10 holdings.
+1. **Real-time Search**: Use web grounding for stock prices and market news. Provide Markdown links.
+2. **Analysis**: Distinguish between Portfolio Data and Market Data.
+3. **Format**: Use **bold**, ### headings, and tables. 
+4. **Language**: Respond in Korean.
+5. **Logic**: Total Earnings = Total Profit (Eval Total - Principal).
 
-# OUTPUT LANGUAGE
-- Always respond in **Korean** (한국어).
-- Use professional financial terminology (e.g., 변동성, 포트폴리오 다각화, 배당 귀족주).
-`;
+Simpson's Portfolio: ${JSON.stringify(contextData)}
+    `;
 
     try {
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("API 키가 없습니다.");
-      }
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n사용자 질문: ${userText}` }] }]
+          contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n질문: ${userText}` }] }]
         })
       });
-
       const resData = await response.json();
       const reply = resData.candidates[0].content.parts[0].text;
-      
       setMessages(prev => [...prev, { role: "model", text: reply }]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: "model", text: "앗, 통신에 문제가 생겼거나 API 키가 설정되지 않았습니다. (.env 파일에 VITE_GEMINI_API_KEY를 확인해주세요)" }]);
+      setMessages(prev => [...prev, { role: "model", text: "통신 오류가 발생했습니다. 환경 변수를 확인해주세요." }]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ padding: pad, display: "flex", flexDirection: "column", height: isDesktop ? "calc(100vh - 120px)" : "calc(100vh - 160px)" }}>
-      <div style={{ background: T.card, borderRadius: 16, border: `1px solid ${T.border}`, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ 
+      padding: pad, 
+      display: "flex", 
+      flexDirection: "column", 
+      // 모바일에서 하단 탭 바 바로 위까지 꽉 채우도록 높이 계산
+      height: isDesktop ? "calc(100vh - 120px)" : "calc(100vh - 125px)", 
+      background: T.bg 
+    }}>
+      <div style={{ 
+        background: T.card, 
+        flex: 1, 
+        display: "flex", 
+        flexDirection: "column", 
+        overflow: "hidden",
+        borderTop: isDesktop ? `1px solid ${T.border}` : "none",
+        borderRadius: isDesktop ? 16 : 0 // 모바일은 꽉 차게 사각형으로
+      }}>
         
-        {/* 채팅 내역 영역 */}
-        <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* 채팅 내역: 모든 텍스트 좌측 정렬 적용 */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 20 }}>
           {messages.map((m, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+            <div key={i} style={{ alignSelf: "flex-start", width: "100%" }}>
               <div style={{ 
-                background: m.role === "user" ? T.accentDim : T.surface, 
                 color: m.role === "user" ? T.accent : T.text, 
-                padding: "12px 16px", 
-                borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-                maxWidth: "80%",
-                border: `1px solid ${m.role === "user" ? "transparent" : T.border}`,
-                lineHeight: 1.5,
-                fontSize: 13,
-                whiteSpace: "pre-wrap"
+                padding: m.role === "user" ? "10px 0" : "0",
+                fontSize: 14,
+                lineHeight: 1.6,
+                textAlign: "left", // ★ 좌측 정렬 강제
+                whiteSpace: "pre-wrap",
+                borderBottom: m.role === "user" ? `1px dashed ${T.border}` : "none",
+                marginBottom: m.role === "user" ? 10 : 0
               }}>
-                {m.text}
+                {m.role === "user" ? `💬 Simpson: ${m.text}` : m.text}
               </div>
             </div>
           ))}
-          {loading && (
-            <div style={{ display: "flex", justifyContent: "flex-start" }}>
-              <div style={{ background: T.surface, color: T.textDim, padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: 13 }}>
-                비서가 데이터를 분석하고 있습니다... ⏳
-              </div>
-            </div>
-          )}
+          {loading && <div style={{ color: T.textDim, fontSize: 13, textAlign: "left" }}>데이터 분석 중... ⏳</div>}
         </div>
 
-        {/* 입력 영역 */}
-        <div style={{ padding: 16, background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", gap: 10 }}>
+        {/* 입력 영역: 하단 여백 제거 */}
+        <div style={{ 
+          padding: "12px 16px", 
+          background: T.surface, 
+          borderTop: `1px solid ${T.border}`, 
+          display: "flex", 
+          gap: 10,
+          paddingBottom: isDesktop ? 12 : "calc(12px + env(safe-area-inset-bottom))" // 아이폰 하단 바 대응
+        }}>
           <input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="자산 현황이나 주가를 물어보세요..."
-            style={{ flex: 1, background: T.background, border: `1px solid ${T.border}`, color: T.text, padding: "12px 16px", borderRadius: 12, outline: "none", fontSize: 14 }}
+            placeholder="질문을 입력하세요..."
+            style={{ 
+              flex: 1, 
+              background: T.bg, 
+              border: `1px solid ${T.border}`, 
+              color: T.text, 
+              padding: "12px", 
+              borderRadius: 10, 
+              outline: "none",
+              fontSize: 14 
+            }}
           />
           <button 
             onClick={handleSend}
             disabled={loading}
-            style={{ background: T.accent, color: "#fff", border: "none", padding: "0 20px", borderRadius: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}
+            style={{ 
+              background: T.accent, 
+              color: "#000", 
+              border: "none", 
+              padding: "0 18px", 
+              borderRadius: 10, 
+              fontWeight: 700, 
+              cursor: "pointer",
+              opacity: loading ? 0.5 : 1
+            }}
           >
             전송
           </button>
@@ -1274,6 +1288,7 @@ Your tone is professional, objective, and analytical. Avoid generic fluff.
     </div>
   );
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  사이드바 (데스크톱 전용 - 탭 분리 적용)
 // ─────────────────────────────────────────────────────────────────────────────
