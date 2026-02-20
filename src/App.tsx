@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import * as recharts from "recharts";
 import Papa from "papaparse";
 import ReactMarkdown from 'react-markdown';
@@ -31,75 +31,34 @@ const T = {
 const SC = ["#42A5F5","#FF7043","#66BB6A","#FFD740","#CE93D8","#4DD0E1","#FF8A65","#AED581","#FFF176","#BA68C8","#4FC3F7","#FF5252","#81C784","#FFB74D","#9575CD","#26C6DA","#EF5350","#A5D6A7","#FFC107","#7E57C2","#F06292","#80CBC4","#DCE775","#B39DDB","#4DB6AC","#E57373","#64B5F6","#AED581","#FFB74D","#90A4AE"];
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  TSV 파싱 유틸리티 (수정됨)
+//  TSV 파싱 유틸리티
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** 문자열 → 숫자 변환 (쉼표, %, ₩ 등 특수기호 완벽 제거) */
 function n(v) {
   if (v === null || v === undefined || v === "" || v === "#N/A") return 0;
   if (typeof v === "number") return v;
-  
   const s = String(v).replace(/[₩$,\s]/g, "").trim();
-  
-  // 퍼센트 기호가 있으면 제거하고 숫자로 변환
-  if (s.includes("%")) {
-    return parseFloat(s.replace("%", ""));
-  }
-  
+  if (s.includes("%")) return parseFloat(s.replace("%", ""));
   const num = parseFloat(s);
   return isNaN(num) ? 0 : num;
 }
 
-/** 날짜 문자열 → "YYYY-MM" 형식 (띄어쓰기 및 다양한 포맷 완벽 대응) */
 function parseDate(str) {
   if (!str) return null;
-  // 모든 공백 제거 후 정리 (예: "19/ 07" -> "19/07")
   const s = String(str).replace(/\s+/g, "").trim();
   if (!s) return null;
-
-  // 1. YYYY.MM.DD
   let m = s.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})\.?$/);
   if (m) return `${m[1]}-${m[2].padStart(2, "0")}`;
-
-  // 2. YYYY-MM-DD or YYYY/MM/DD
   m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
   if (m) return `${m[1]}-${m[2].padStart(2, "0")}`;
-
-  // 3. M/D/YYYY
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) return `${m[3]}-${m[1].padStart(2, "0")}`;
-
-  // 4. YY/MM (이번 구글 시트 포맷: 19/07, 20/01 등)
   m = s.match(/^(\d{2})\/(\d{1,2})$/);
   if (m) {
     const year = 2000 + parseInt(m[1], 10);
     return `${year}-${m[2].padStart(2, "0")}`;
   }
-
   return null;
 }
-// ─────────────────────────────────────────────────────────────────────────────
-//  MONTHLY TSV 파싱
-//  시트: (월) 종합추이
-//
-//  행 구조 (1-indexed openpyxl → 0-indexed TSV):
-//    Row 3  (idx 2) : SUMMARY - 원금(K), 수익(L), 평가(M), 수익률(N)
-//    Row 4  (idx 3) : SUMMARY - 투자기간(C), 수익률고점(E), 고점대비(G), 누적배당(L)
-//    Row 5  (idx 4) : SUMMARY - 월평균수익(C), 수익고점(E), 누적시세(L)
-//    Row 8  (idx 7) : 컬럼 헤더 (Date, 투자원금, 평가총액, ...)
-//    Row 15+(idx14+): 월별 데이터
-//
-//  핵심 컬럼 (0-based index):
-//    0  = Date
-//    1  = 투자 원금     → principal
-//    2  = 평가 총액     → evalTotal
-//    3  = 수익 금액     → profit
-//    4  = 원금증감      → principalChg
-//    5  = 수익증감      → profitChg
-//    6  = 수익률 (소수) → returnPct  × 100
-//    57 = 배당수익      → dividend
-//    58 = 누적배당수익  → cumDividend
-// ─────────────────────────────────────────────────────────────────────────────
 
 function parseMonthlyTSV(text) {
   const rows = text.split("\n").map(r => r.split("\t"));
@@ -117,7 +76,6 @@ function parseMonthlyTSV(text) {
     principal: n(r2[10]) * 1000,
     profit:    n(r2[11]) * 1000,
     evalTotal: n(r2[12]) * 1000,
-    // 요약 수익률이 비정상적으로 크면 100으로 나누어 보정 (10839 -> 108.39)
     returnPct: n(r2[13]) > 500 ? n(r2[13]) / 100 : n(r2[13]),
     months:    n(r3[2]),
     highReturnPct: n(r3[4]) > 500 ? n(r3[4]) / 100 : n(r3[4]),
@@ -151,12 +109,11 @@ function parseMonthlyTSV(text) {
     const profit = n(row[dIdx + 3]) * 1000;
     const curCumDiv = firstDividendFound ? runningCumDiv : 0;
     
-    // ★ 수익률 필터링: 원금이 1,000만원 미만인 극초기 구간의 튀는 수익률은 0으로 처리하거나 제한
     let rawReturn = n(row[dIdx + 6]);
     if (principal < 10000000 && (rawReturn > 500 || rawReturn < -500)) {
       rawReturn = 0; 
     } else if (rawReturn > 500) {
-      rawReturn = rawReturn / 100; // 100배 뻥튀기 방어
+      rawReturn = rawReturn / 100;
     }
 
     monthlyMap.set(date, {
@@ -179,39 +136,19 @@ function parseMonthlyTSV(text) {
   return { SUMMARY, MONTHLY };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  HOLDINGS TSV 파싱
-//  시트: 종목별(100만원이상)
-//
-//  컬럼 (0-based index):
-//    0 = 국가          → country
-//    1 = 종목코드      → code
-//    2 = 종목명        → name
-//    3 = 유형          → type
-//    4 = 수량          → qty
-//    5 = 매입금액      → buyAmount
-//    6 = 평가금액      → evalAmount
-//    7 = 손익          → profit
-//    8 = 수익률(%) 소수 → returnPct × 100
-//    9 = 비중(%)  소수  → weight    × 100
-// ─────────────────────────────────────────────────────────────────────────────
 function parseHoldingsTSV(text) {
   const rows = text.split("\n").map(r => r.split("\t"));
   const HOLDINGS = [];
 
-  // Row 0 = 헤더, Row 1부터 데이터
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length < 8) continue;
 
     const name = (row[2] || "").trim();
-    if (!name) continue;  // 빈 행 스킵
+    if (!name) continue;
 
     const evalAmount = n(row[6]);
-    if (evalAmount <= 0) continue;  // 평가금액 0 이하 스킵
-
-    const rawReturn = n(row[8]);
-    const rawWeight = n(row[9]);
+    if (evalAmount <= 0) continue;
 
     HOLDINGS.push({
       country:    (row[0] || "").trim(),
@@ -222,48 +159,25 @@ function parseHoldingsTSV(text) {
       buyAmount:  n(row[5]),
       evalAmount,
       profit:     n(row[7]),
-      // 소수 (0.75) vs 이미 % (75.39) 자동 판별
-      returnPct:  n(row[8]), // 이미 % 처리되어 있으므로 그대로 사용
-      weight:     n(row[9]), // 이미 % 처리되어 있으므로 그대로 사용
+      returnPct:  n(row[8]),
+      weight:     n(row[9]),
     });
   }
 
-  // 비중 내림차순 정렬
   HOLDINGS.sort((a, b) => b.weight - a.weight);
   return HOLDINGS;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  DIVIDENDS 연도별 집계 (MONTHLY 데이터에서 계산)
-//
-//  계산 방법:
-//    divIncome   = 해당 연도 월배당 합계
-//    totalReturn = 해당 연도말 누적수익 − 전년도말 누적수익
-//    capGain     = totalReturn − divIncome
-//    cumDiv      = 누적 배당합계
-//    cumTotal    = 해당 연도말 누적수익 (절대값)
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
-//  DIVIDENDS 연도별 집계 (보정된 MONTHLY 데이터 기반)
-// ─────────────────────────────────────────────────────────────────────────────
 function deriveDividends(monthly) {
   if (!monthly || !monthly.length) return [];
 
   const byYear = {};
   
-  // 연도별 데이터 그룹화
   monthly.forEach(d => {
     const yr = d.date.substring(0, 4);
     if (!byYear[yr]) {
-      byYear[yr] = { 
-        monthlyDividends: [], 
-        cumDividends: [],
-        lastProfit: 0, 
-        lastPrincipal: 0, 
-        lastEval: 0 
-      };
+      byYear[yr] = { monthlyDividends: [], cumDividends: [], lastProfit: 0, lastPrincipal: 0, lastEval: 0 };
     }
-    // 월별 배당금과 누적 배당금을 모두 수집
     byYear[yr].monthlyDividends.push(d.dividend || 0);
     byYear[yr].cumDividends.push(d.cumDividend || 0);
     byYear[yr].lastProfit    = d.profit || 0;
@@ -273,76 +187,53 @@ function deriveDividends(monthly) {
 
   let prevYearEndCumDiv = 0;
   let prevProfit = 0;
-
   const sortedYears = Object.keys(byYear).sort();
 
   const result = sortedYears.map(yr => {
     const v = byYear[yr];
-    
-    // 1. 월별 배당금 합계 계산
     let divIncome = v.monthlyDividends.reduce((s, x) => s + x, 0);
-    
-    // 2. 만약 월별 합계가 0이라면, 연말 누적 배당금 차액으로 역산 (안전장치)
     const yearEndCumDiv = Math.max(...v.cumDividends);
     if (divIncome <= 0 && yearEndCumDiv > prevYearEndCumDiv) {
       divIncome = yearEndCumDiv - prevYearEndCumDiv;
     }
-
     const totalReturn  = v.lastProfit - prevProfit;
     const capGain      = totalReturn - divIncome;
     
     const item = {
-      year:             parseInt(yr),
-      divIncome:        Math.max(0, divIncome),
-      capGain:          capGain,
-      totalReturn:      totalReturn,
-      cumDiv:           yearEndCumDiv,
-      cumTotal:         v.lastProfit,
-      yearEndPrincipal: v.lastPrincipal,
-      yearEndEval:      v.lastEval,
+      year: parseInt(yr),
+      divIncome: Math.max(0, divIncome),
+      capGain, totalReturn, cumDiv: yearEndCumDiv,
+      cumTotal: v.lastProfit, yearEndPrincipal: v.lastPrincipal, yearEndEval: v.lastEval,
     };
-
-    // 다음 연도 계산을 위해 값 업데이트
     prevYearEndCumDiv = yearEndCumDiv;
     prevProfit = v.lastProfit;
-
     return item;
   });
 
-  // 전년 대비 배당 성장률(divGrowth) 계산
   return result.map((d, i) => ({
     ...d,
-    divGrowth: i === 0 || result[i-1].divIncome === 0 
-      ? 0 
-      : +((d.divIncome / result[i-1].divIncome - 1) * 100).toFixed(2),
+    divGrowth: i === 0 || result[i-1].divIncome === 0 ? 0 : +((d.divIncome / result[i-1].divIncome - 1) * 100).toFixed(2),
   }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  포맷 헬퍼
 // ─────────────────────────────────────────────────────────────────────────────
-// 숫자를 '억', '만' 단위로 포맷팅 (에러 방지 로직 추가)
 const fK = (v) => {
-  if (v === undefined || v === null || isNaN(v)) return "0"; // 값이 없으면 0 반환
+  if (v === undefined || v === null || isNaN(v)) return "0";
   const val = Number(v);
   if (Math.abs(val) >= 100000000) return (val / 100000000).toFixed(1) + "억";
   if (Math.abs(val) >= 10000) return (val / 10000).toLocaleString(undefined, {maximumFractionDigits:0}) + "만";
   return val.toLocaleString();
 };
 const fF = (v) => (v > 0 ? "+" : "") + Math.abs(v).toLocaleString() + "원";
-// 퍼센트 포맷팅 (무적 방어막 추가)
-
 const fP = (v) => {
   if (v === undefined || v === null || isNaN(v)) return "0.00%";
   const val = Number(v);
-  // 값이 1000 이상으로 튀면 데이터 파싱 오류로 간주하고 0.00% 출력하여 차트 보호
   if (Math.abs(val) > 1000) return "0.00%";
   return val.toFixed(2) + "%";
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  반응형 브레이크포인트 훅
-// ─────────────────────────────────────────────────────────────────────────────
 function useBP() {
   const [w, setW] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
   useEffect(() => {
@@ -355,9 +246,6 @@ function useBP() {
   return "mobile";
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  공통 컴포넌트
-// ─────────────────────────────────────────────────────────────────────────────
 function CT({ active, payload, label, fmt }) {
   if (!active || !payload?.length) return null;
   return (
@@ -382,9 +270,6 @@ function StatCard({ label, value, color, sub, large }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  로딩 / 에러 화면
-// ─────────────────────────────────────────────────────────────────────────────
 function LoadingScreen() {
   return (
     <div style={{ minHeight:"100vh", background:T.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:20 }}>
@@ -409,22 +294,24 @@ function ErrorScreen({ message, onRetry }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  탭 컴포넌트들
-// ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
 //  종합(Overview) 탭 컴포넌트
 // ─────────────────────────────────────────────────────────────────────────────
-function OverviewTab({ data, bp }) {
+function OverviewTab({ data, bp, onAskAi }) {
   const { SUMMARY, MONTHLY, HOLDINGS } = data;
   const isDesktop = bp === "desktop";
   const isWide    = bp !== "mobile";
   const pad   = isDesktop ? "0 28px 48px" : "0 16px 100px";
   const chartH = isDesktop ? 340 : isWide ? 280 : 250;
 
-  // TOP 10 데이터 분리
-  const top10 = HOLDINGS.slice(0, 10);
+  const [quickQuestion, setQuickQuestion] = useState("");
 
-  // 상단 4개 요약 카드용 데이터
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && quickQuestion.trim() && onAskAi) {
+      onAskAi(quickQuestion);
+    }
+  };
+
+  const top10 = HOLDINGS.slice(0, 10);
   const stats = [
     { label: "현재 수익률", value: fP(SUMMARY.returnPct),       color: T.accent },
     { label: "수익률 고점", value: fP(SUMMARY.highReturnPct),    color: T.accent, sub: "고점대비 "+fP(SUMMARY.fromHighPct) },
@@ -434,7 +321,6 @@ function OverviewTab({ data, bp }) {
 
   return (
     <div style={{ padding:pad }}>
-      {/* Hero */}
       <div style={{ background:"linear-gradient(145deg,#131B26,#0E1319)", borderRadius:20, padding:isDesktop?"28px":"24px 20px", marginBottom:16, border:`1px solid ${T.border}`, position:"relative", overflow:"hidden" }}>
         <div style={{ position:"absolute", top:-30, right:-30, width:150, height:150, borderRadius:"50%", background:T.accentGlow, filter:"blur(40px)" }}/>
         <p style={{ color:T.textSec, fontSize:isDesktop?14:12, margin:"0 0 3px", fontWeight:500 }}>총 평가금액</p>
@@ -462,7 +348,23 @@ function OverviewTab({ data, bp }) {
         </div>
       </div>
 
-      {/* ── ★ 변경점: StatCard 대신 직접 높이와 여백을 최소화한 커스텀 카드 적용 ── */}
+      <div style={{ marginBottom: 16, padding: "12px 20px", background: T.surface, borderRadius: 12, border: `1px solid ${T.accent}50`, display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
+        <span style={{ fontSize: 20 }}>🤖</span>
+        <input 
+          value={quickQuestion}
+          onChange={(e) => setQuickQuestion(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="오늘 SPGI 주가 어때? 또는 내 자산 분석해줘"
+          style={{ flex: 1, background: "transparent", border: "none", color: T.text, fontSize: 15, outline: "none" }}
+        />
+        <button 
+          onClick={() => quickQuestion.trim() && onAskAi && onAskAi(quickQuestion)}
+          style={{ background: T.accent, color: "#000", border: "none", padding: "8px 16px", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 14 }}
+        >
+          물어보기
+        </button>
+      </div>
+
       <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(4,1fr)":"repeat(2,1fr)", gap:10, marginBottom:16 }}>
         {stats.map((s, i) => (
           <div key={i} style={{ background:T.card, borderRadius:12, padding:"12px 14px", border:`1px solid ${T.border}`, display:"flex", flexDirection:"column", justifyContent:"center" }}>
@@ -473,11 +375,9 @@ function OverviewTab({ data, bp }) {
         ))}
       </div>
 
-      {/* Chart + Top10 */}
       <div style={{ display:"grid", gridTemplateColumns:isDesktop?"1fr 1fr":"1fr", gap:16 }}>
         <div style={{ background:T.card, borderRadius:16, padding:"16px 6px 8px 0", border:`1px solid ${T.border}` }}>
           <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 8px 16px" }}>자산 및 수익 추이</p>
-          
           <div style={{ display:"flex", gap:14, margin:"0 0 10px 16px", flexWrap:"wrap" }}>
             {[{l:"평가총액",c:T.red},{l:"투자원금",c:T.blue},{l:"수익금액",c:T.orange}].map(x => (
               <div key={x.l} style={{ display:"flex", alignItems:"center", gap:5 }}>
@@ -486,25 +386,13 @@ function OverviewTab({ data, bp }) {
               </div>
             ))}
           </div>
-
           <ResponsiveContainer width="100%" height={chartH}>
             <ComposedChart data={MONTHLY}>
               <CartesianGrid strokeDasharray="3 3" stroke={T.border}/>
               <XAxis dataKey="date" tick={{fill:T.textDim,fontSize:9}} tickFormatter={v=>v.slice(2)} axisLine={false} tickLine={false} interval={Math.floor(MONTHLY.length/6)}/>
-              
-              <YAxis 
-                tick={{fill:T.textDim,fontSize:9}} 
-                axisLine={false} 
-                tickLine={false} 
-                tickFormatter={v=>fK(v)} 
-                width={46}
-                domain={[dataMin => Math.min(dataMin, -50000000), 'auto']} 
-                allowDataOverflow={true} 
-              />
-              
+              <YAxis tick={{fill:T.textDim,fontSize:9}} axisLine={false} tickLine={false} tickFormatter={v=>fK(v)} width={46} domain={[dataMin => Math.min(dataMin, -50000000), 'auto']} allowDataOverflow={true} />
               <Tooltip content={<CT fmt="krw"/>}/>
               <ReferenceLine y={0} stroke={T.textDim} strokeDasharray="3 3"/>
-              
               <Line type="monotone" dataKey="principal" name="투자원금" stroke={T.blue} strokeWidth={2} dot={false}/>
               <Line type="monotone" dataKey="evalTotal" name="평가총액" stroke={T.red} strokeWidth={2} dot={false}/>
               <Line type="monotone" dataKey="profit" name="수익금액" stroke={T.orange} strokeWidth={2} dot={false}/>
@@ -512,22 +400,17 @@ function OverviewTab({ data, bp }) {
           </ResponsiveContainer>
         </div>
 
-        {/* TOP 10 영역 */}
         <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
           <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 12px" }}>TOP 10 종목</p>
-          
           <div style={{ display:"grid", gridTemplateColumns:isWide?"1fr 1fr":"1fr", columnGap:24 }}>
             {top10.map((h, i) => {
               const isLastRow = isWide ? (i + 2 >= top10.length) : (i === top10.length - 1);
-              
               return (
                 <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom: isLastRow ? "none" : `1px solid ${T.border}` }}>
                   <div style={{ width:28, height:28, borderRadius:7, background:`${SC[i%SC.length]}15`, display:"flex", alignItems:"center", justifyContent:"center", color:SC[i%SC.length], fontSize:11, fontWeight:800 }}>{i+1}</div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <p style={{ color:T.text, fontSize:12, fontWeight:600, margin:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{h.name}</p>
-                    <p style={{ color:T.textDim, fontSize:10, margin:"2px 0 0" }}>
-                      {h.country} · {h.type} · <span style={{ color:h.returnPct>=0?T.accent:T.red, fontWeight:600 }}>{fP(h.returnPct)}</span>
-                    </p>
+                    <p style={{ color:T.textDim, fontSize:10, margin:"2px 0 0" }}>{h.country} · {h.type} · <span style={{ color:h.returnPct>=0?T.accent:T.red, fontWeight:600 }}>{fP(h.returnPct)}</span></p>
                   </div>
                   <div style={{ textAlign:"right" }}>
                     <p style={{ color:T.text, fontSize:14, fontWeight:700, margin:0, fontFamily:"'IBM Plex Mono',monospace" }}>{h.weight.toFixed(1)}%</p>
@@ -543,6 +426,9 @@ function OverviewTab({ data, bp }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  나머지 탭들 (Returns, Cumulative, Dividend, Monthly, Assets, Holdings)
+// ─────────────────────────────────────────────────────────────────────────────
 function ReturnsTab({ data, bp }) {
   const { SUMMARY, MONTHLY } = data;
   const isDesktop = bp === "desktop";
@@ -629,6 +515,7 @@ function ReturnsTab({ data, bp }) {
     </div>
   );
 }
+
 function CumulativeTab({ data, bp }) {
   const { MONTHLY } = data;
   const isDesktop = bp === "desktop";
@@ -749,7 +636,6 @@ function DividendTab({ data, bp }) {
       </div>
 
       <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}` }}>
-        {/* 헤더 영역: 화면이 넓으면 2단으로 복제해서 렌더링 */}
         <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px" }}>
             {["연도","배당 수익","시세 차익","종합 수익"].map((h, i) => (
@@ -764,8 +650,6 @@ function DividendTab({ data, bp }) {
             </div>
           )}
         </div>
-        
-        {/* 데이터 영역 */}
         <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr" }}>
           {[...DIVIDENDS].reverse().map((d, i) => (
             <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", borderBottom:`1px solid ${T.border}`, alignItems:"center" }}>
@@ -780,7 +664,6 @@ function DividendTab({ data, bp }) {
     </div>
   );
 }
-
 
 function MonthlyTab({ data, bp }) {
   const { MONTHLY } = data;
@@ -813,7 +696,6 @@ function MonthlyTab({ data, bp }) {
       </div>
 
       <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}` }}>
-        {/* 헤더 영역: 화면이 넓으면 2단으로 복제해서 렌더링 */}
         <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px" }}>
             {["월","월간","누적","배당"].map((h, i) => (
@@ -828,8 +710,6 @@ function MonthlyTab({ data, bp }) {
             </div>
           )}
         </div>
-        
-        {/* 데이터 영역 */}
         <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr" }}>
           {[...mR].reverse().map((d, i) => (
             <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", borderBottom:`1px solid ${T.border}`, alignItems:"center" }}>
@@ -850,9 +730,7 @@ function MonthlyTab({ data, bp }) {
     </div>
   );
 }
-// ─────────────────────────────────────────────────────────────────────────────
-//  자산(Assets) 탭 컴포넌트
-// ─────────────────────────────────────────────────────────────────────────────
+
 function AssetsTab({ data, bp }) {
   const { MONTHLY } = data;
   const isDesktop = bp === "desktop";
@@ -860,7 +738,6 @@ function AssetsTab({ data, bp }) {
   const pad    = isDesktop ? "0 28px 48px" : "0 16px 100px";
   const chartH = isDesktop ? 300 : isWide ? 260 : 220;
 
-  // 1. 도넛 차트용 최신 데이터
   const latest = MONTHLY[MONTHLY.length - 1] || {};
   const donutData = [
     { name: "투자",        value: latest.invest,     fill: SC[0] }, 
@@ -873,14 +750,11 @@ function AssetsTab({ data, bp }) {
     { name: "자동차",      value: latest.car,        fill: SC[7] }, 
   ].filter(d => d.value > 0).sort((a, b) => b.value - a.value);
 
-  // 2. 추이 그래프용 전체 데이터
   const chartData = MONTHLY.filter(m => m.assetTotal > 0);
 
   return (
     <div style={{ padding:pad }}>
       <div style={{ display:"grid", gridTemplateColumns:isDesktop?"1fr 1fr":"1fr", gap:16, marginBottom:16 }}>
-        
-        {/* 상단: 도넛 차트 */}
         <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
           <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 4px" }}>최신 자산 구성</p>
           <p style={{ color:T.textDim, fontSize:11, margin:"0 0 8px" }}>₩{(latest.assetTotal||0).toLocaleString()} · {latest.date}</p>
@@ -912,7 +786,6 @@ function AssetsTab({ data, bp }) {
           </div>
         </div>
 
-        {/* 상단: 주요 자산 요약 카드 */}
         {isDesktop && (
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <StatCard label="총 자산 (TOTAL)" value={"₩"+fK(latest.assetTotal||0)} color={T.text} large/>
@@ -923,18 +796,14 @@ function AssetsTab({ data, bp }) {
         )}
       </div>
 
-      {/* 중단: 누적 추이 영역 차트 (이중 축 제거) */}
       <div style={{ background:T.card, borderRadius:16, padding:"16px 6px 8px 0", border:`1px solid ${T.border}`, marginBottom:16 }}>
         <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 10px 16px" }}>자산 및 TOTAL 추이</p>
         <ResponsiveContainer width="100%" height={chartH}>
           <ComposedChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke={T.border}/>
             <XAxis dataKey="date" tick={{fill:T.textDim,fontSize:9}} tickFormatter={v=>v.slice(2)} axisLine={false} tickLine={false} interval={Math.floor(chartData.length/6)}/>
-            
-            {/* 단일 Y축으로 통합 */}
             <YAxis tick={{fill:T.textDim,fontSize:9}} axisLine={false} tickLine={false} tickFormatter={v=>fK(v)} width={46}/>
             <Tooltip content={<CT fmt="krw"/>}/>
-            
             <Area type="monotone" dataKey="invest"     name="투자"        stackId="a" fill={SC[0]} stroke={SC[0]}/>
             <Area type="monotone" dataKey="realEstate" name="부동산-대출" stackId="a" fill={SC[1]} stroke={SC[1]}/>
             <Area type="monotone" dataKey="jeonse"     name="전세금"      stackId="a" fill={SC[2]} stroke={SC[2]}/>
@@ -943,16 +812,13 @@ function AssetsTab({ data, bp }) {
             <Area type="monotone" dataKey="accCard"    name="계좌-카드"   stackId="a" fill={SC[5]} stroke={SC[5]}/>
             <Area type="monotone" dataKey="pension"    name="연금"        stackId="a" fill={SC[6]} stroke={SC[6]}/>
             <Area type="monotone" dataKey="car"        name="자동차"      stackId="a" fill={SC[7]} stroke={SC[7]}/>
-
             <Line type="monotone" dataKey="assetTotal" name="TOTAL" stroke={T.text} strokeWidth={2} dot={false}/>
           </ComposedChart>
         </ResponsiveContainer>
       </div>
 
-      {/* 하단: 날짜별 자산 데이터 테이블 */}
       <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}` }}>
         <div style={{ overflowX:"auto" }}>
-          {/* 모바일에서도 칼럼이 안 찌그러지도록 최소 넓이(700px) 지정 */}
           <div style={{ minWidth: 700 }}>
             <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1.2fr", padding:"10px 14px", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
               {["Date","투자","부동산","전세금","T채권","예적금","계좌·카드","연금","자동차","TOTAL"].map((h, i) => (
@@ -978,15 +844,10 @@ function AssetsTab({ data, bp }) {
           </div>
         </div>
       </div>
-      
     </div>
   );
 }
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  종목(Holdings) 탭 컴포넌트
-// ─────────────────────────────────────────────────────────────────────────────
 function HoldingsTab({ data, bp }) {
   const { HOLDINGS } = data;
   const isDesktop = bp === "desktop";
@@ -999,7 +860,6 @@ function HoldingsTab({ data, bp }) {
   const types    = ["전체", ...new Set(HOLDINGS.map(h => h.type))];
   const filtered = filter === "전체" ? HOLDINGS : HOLDINGS.filter(h => h.type === filter);
   
-  // 정렬 로직 (매입금액순 추가)
   const sorted   = [...filtered].sort((a, b) => {
     if (sortBy === "weight")    return b.weight - a.weight;
     if (sortBy === "profit")    return b.returnPct - a.returnPct;
@@ -1010,7 +870,6 @@ function HoldingsTab({ data, bp }) {
   const totalEval = HOLDINGS.reduce((s, h) => s + h.evalAmount, 0);
   const top12     = HOLDINGS.slice(0, 12);
 
-  // ── 국가별 비중 계산 (미국 vs 한국) ──
   const usSum = HOLDINGS.filter(h => h.country === "미국").reduce((s, h) => s + h.evalAmount, 0);
   const krSum = HOLDINGS.filter(h => h.country === "한국").reduce((s, h) => s + h.evalAmount, 0);
   const etcSum = totalEval - usSum - krSum;
@@ -1021,11 +880,7 @@ function HoldingsTab({ data, bp }) {
 
   return (
     <div style={{ padding:pad }}>
-      
-      {/* ── 상단 요약 대시보드 ── */}
       <div style={{ display:"grid", gridTemplateColumns:isDesktop?"1fr 1fr":"1fr", gap:16, marginBottom:16 }}>
-        
-        {/* 1. 파이 차트 (TOP 12) */}
         <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
           <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 4px" }}>포트폴리오 구성</p>
           <p style={{ color:T.textDim, fontSize:11, margin:"0 0 8px" }}>{HOLDINGS.length}종목 · ₩{totalEval.toLocaleString()}</p>
@@ -1056,10 +911,7 @@ function HoldingsTab({ data, bp }) {
           </div>
         </div>
 
-        {/* 2. 국가별 비중 & 요약 카드 */}
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-          
-          {/* 국가별 비중 시각화 바 (모바일/PC 모두 표시) */}
           <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
             <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 14px" }}>미국 vs 한국 투자 비중</p>
             <div style={{ display: "flex", height: 16, borderRadius: 8, overflow: "hidden", marginBottom: 14 }}>
@@ -1085,7 +937,6 @@ function HoldingsTab({ data, bp }) {
             </div>
           </div>
 
-          {/* 데스크톱 전용 통계 카드 */}
           {isDesktop && (
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
               <StatCard label="총 평가금액" value={"₩"+fK(totalEval)+"원"} color={T.text} large/>
@@ -1095,7 +946,6 @@ function HoldingsTab({ data, bp }) {
         </div>
       </div>
 
-      {/* ── 필터 및 정렬 버튼 ── */}
       <div style={{ display:"flex", gap:6, overflowX:"auto", marginBottom:10, paddingBottom:4 }}>
         {types.map(t => (
           <button key={t} onClick={()=>setFilter(t)} style={{ padding:"6px 12px", borderRadius:7, flexShrink:0, border:`1px solid ${filter===t?T.borderActive:T.border}`, background:filter===t?T.accentDim:"transparent", color:filter===t?T.accent:T.textSec, fontSize:11, fontWeight:600, cursor:"pointer" }}>
@@ -1104,7 +954,6 @@ function HoldingsTab({ data, bp }) {
         ))}
       </div>
       <div style={{ display:"flex", gap:6, marginBottom:12 }}>
-        {/* 매입금액 정렬 옵션 추가 */}
         {[{id:"weight",l:"비중순"},{id:"profit",l:"수익률순"},{id:"buyAmount",l:"매입금액순"}].map(s => (
           <button key={s.id} onClick={()=>setSortBy(s.id)} style={{ padding:"5px 10px", borderRadius:6, border:`1px solid ${sortBy===s.id?T.borderActive:T.border}`, background:sortBy===s.id?T.accentDim:"transparent", color:sortBy===s.id?T.accent:T.textDim, fontSize:10, fontWeight:600, cursor:"pointer" }}>
             {s.l}
@@ -1112,7 +961,6 @@ function HoldingsTab({ data, bp }) {
         ))}
       </div>
 
-      {/* ── 종목 리스트 ── */}
       <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}` }}>
         <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr" }}>
           {sorted.map((h, i) => (
@@ -1128,7 +976,6 @@ function HoldingsTab({ data, bp }) {
               </div>
               <div style={{ textAlign:"right", flexShrink:0 }}>
                 <p style={{ color:T.text, fontSize:14, fontWeight:700, margin:0, fontFamily:"'IBM Plex Mono',monospace" }}>{h.weight.toFixed(1)}%</p>
-                {/* 정렬이 매입금액순일 때는 매입 원금을 보여줌 */}
                 <p style={{ color:T.textDim, fontSize:10, margin:"1px 0 0" }}>
                   {sortBy === "buyAmount" ? `${fK(h.buyAmount)}원 (매입)` : `${fK(h.evalAmount)}원 (평가)`}
                 </p>
@@ -1144,25 +991,26 @@ function HoldingsTab({ data, bp }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  Q&A (AI 비서) 탭 컴포넌트
 // ─────────────────────────────────────────────────────────────────────────────
-
-function QaTab({ data, bp }) {
+function QaTab({ data, bp, input, setInput }) {
   const { SUMMARY, MONTHLY, HOLDINGS } = data;
   const isDesktop = bp === "desktop";
-  
-  // 패딩 조정: 데스크톱은 여백 유지, 모바일은 하단 탭과의 간격 제거
   const pad = isDesktop ? "0 28px 48px" : "0 0 0"; 
 
   const [messages, setMessages] = useState([
     { role: "model", text: "안녕하세요! Simpson님의 자산 현황이나 특정 종목에 대해 무엇이든 물어보세요. 🤖\n(예: '작년 12월 총자산은 얼마였어?', 'SPGI 오늘 주가는 어때?')" }
   ]);
-  const [input, setInput] = useState("");
+  
+  // ❌ 주의: 여기에 있던 const [input, setInput] = useState(""); 코드는 완전히 삭제되었습니다!
+
   const [loading, setLoading] = useState(false);
+
+  // ★ 핵심 추가: 자동 전송이 두 번 실행되는 것을 막는 방어막(Flag)
+  const hasAutoSent = useRef(false);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
     const userText = input;
-    // 화면에 사용자 질문 먼저 띄우기
     setMessages(prev => [...prev, { role: "user", text: userText }]);
     setInput("");
     setLoading(true);
@@ -1172,7 +1020,6 @@ function QaTab({ data, bp }) {
       holdings: HOLDINGS.slice(0, 10).map(h => ({ n: h.name, r: h.returnPct.toFixed(1) + "%" }))
     };
 
-    // 기존 프롬프트 (수정 없이 그대로 사용)
     const systemPrompt = `
 # SYSTEM CONTEXT & PERSONA
 You are a **Senior Quantitative Investment Analyst** at a global hedge fund. You are briefing a high-net-worth client (Nickname: Simpson) who is data-driven, prefers cold hard facts, and aims for early retirement in December 2030. 
@@ -1200,7 +1047,6 @@ Your tone is professional, objective, and analytical.
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
     try {
-      // ★ 1. 기억 이식: 기존 대화 내역(messages)을 API 형식으로 변환 (인사말은 제외)
       const chatHistory = messages
         .filter(m => !m.text.includes("안녕하세요! Simpson님의 자산 현황"))
         .map(m => ({
@@ -1208,16 +1054,13 @@ Your tone is professional, objective, and analytical.
           parts: [{ text: m.text }]
         }));
       
-      // 방금 입력한 새로운 질문 추가
       chatHistory.push({ role: "user", parts: [{ text: userText }] });
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // ★ 2. 최신 API 규격 적용: 시스템 지시어를 별도 속성으로 완전히 분리
           systemInstruction: { parts: [{ text: systemPrompt }] },
-          // ★ 3. 단일 질문이 아닌 '전체 대화 기록(chatHistory)'을 전송
           contents: chatHistory, 
           tools: [{ googleSearch: {} }] 
         })
@@ -1236,112 +1079,65 @@ Your tone is professional, objective, and analytical.
     } finally {
       setLoading(false);
     }
-  };
+};
+
+  // ─────────────────────────────────────────────────────────
+  // ★ 핵심 수정: 방어막(hasAutoSent.current)이 false일 때만 한 번 전송
+  useEffect(() => {
+    if (input && input.trim() !== "" && !hasAutoSent.current) {
+      hasAutoSent.current = true; // 깃발을 꽂아서 다음 렌더링 땐 무시하도록 처리
+      handleSend();
+    }
+  }, []);
+  // ─────────────────────────────────────────────────────────
 
   return (
-    <div style={{ 
-      padding: pad, 
-      display: "flex", 
-      flexDirection: "column", 
-      // 모바일에서 하단 탭 바 바로 위까지 꽉 채우도록 높이 계산
-      height: isDesktop ? "calc(100vh - 120px)" : "calc(100vh - 125px)", 
-      background: T.bg 
-    }}>
-      <div style={{ 
-        background: T.card, 
-        flex: 1, 
-        display: "flex", 
-        flexDirection: "column", 
-        overflow: "hidden",
-        borderTop: isDesktop ? `1px solid ${T.border}` : "none",
-        borderRadius: isDesktop ? 16 : 0 // 모바일은 꽉 차게 사각형으로
-      }}>
+    <div style={{ padding: pad, display: "flex", flexDirection: "column", height: isDesktop ? "calc(100vh - 120px)" : "calc(100vh - 125px)", background: T.bg }}>
+      <div style={{ background: T.card, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", borderTop: isDesktop ? `1px solid ${T.border}` : "none", borderRadius: isDesktop ? 16 : 0 }}>
         
-        {/* 채팅 내역: 모든 텍스트 좌측 정렬 적용 */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 20 }}>
           {messages.map((m, i) => (
             <div key={i} style={{ alignSelf: "flex-start", width: "100%" }}>
               <div style={{ 
                 color: m.role === "user" ? T.accent : T.text, 
                 padding: m.role === "user" ? "10px 0" : "0",
-                fontSize: 14,
-                lineHeight: 1.6,
-                textAlign: "left", // ★ 좌측 정렬 강제
-                // whiteSpace: "pre-wrap" <- 마크다운 적용을 위해 이 줄은 삭제했습니다.
+                fontSize: 14, lineHeight: 1.6, textAlign: "left",
                 borderBottom: m.role === "user" ? `1px dashed ${T.border}` : "none",
                 marginBottom: m.role === "user" ? 10 : 0
               }}>
-                
-                {/* ★ 여기가 핵심 수정 부분입니다 ★ */}
                 {m.role === "user" ? (
                   `💬 Simpson: ${m.text}`
                 ) : (
                   <ReactMarkdown
                     components={{
-                      // 1. 일반 단락 (p): 아래쪽에 16px 여백 추가로 단락 구분
                       p: ({node, ...props}) => <p style={{ marginBottom: "16px", lineHeight: "1.7" }} {...props} />,
-                      
-                      // 2. 소제목 (h3): 위아래 여백을 넉넉히 주고 글씨를 키움
                       h3: ({node, ...props}) => <h3 style={{ marginTop: "28px", marginBottom: "12px", fontSize: "16px", fontWeight: "bold", color: T.text }} {...props} />,
-                      
-                      // 3. 리스트 (ul): 왼쪽으로 24px 들여쓰기 적용
                       ul: ({node, ...props}) => <ul style={{ paddingLeft: "24px", marginBottom: "16px", listStyleType: "disc" }} {...props} />,
-                      
-                      // 4. 리스트 아이템 (li): 항목 간 8px 여백 추가
                       li: ({node, ...props}) => <li style={{ marginBottom: "8px", lineHeight: "1.6" }} {...props} />,
-                      
-                      // 5. 강조 (strong): 볼드체를 더 눈에 띄게 (필요시 색상 추가 가능)
                       strong: ({node, ...props}) => <strong style={{ fontWeight: "800" }} {...props} />
                     }}
                   >
                     {m.text}
                   </ReactMarkdown>
                 )}
-                
               </div>
             </div>
           ))}
           {loading && <div style={{ color: T.textDim, fontSize: 13, textAlign: "left" }}>데이터 분석 중... ⏳</div>}
         </div>
 
-        {/* 입력 영역: 하단 여백 제거 */}
-        <div style={{ 
-          padding: "12px 16px", 
-          background: T.surface, 
-          borderTop: `1px solid ${T.border}`, 
-          display: "flex", 
-          gap: 10,
-          paddingBottom: isDesktop ? 12 : "calc(12px + env(safe-area-inset-bottom))" // 아이폰 하단 바 대응
-        }}>
+        <div style={{ padding: "12px 16px", background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", gap: 10, paddingBottom: isDesktop ? 12 : "calc(12px + env(safe-area-inset-bottom))" }}>
           <input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="질문을 입력하세요..."
-            style={{ 
-              flex: 1, 
-              background: T.bg, 
-              border: `1px solid ${T.border}`, 
-              color: T.text, 
-              padding: "12px", 
-              borderRadius: 10, 
-              outline: "none",
-              fontSize: 14 
-            }}
+            style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.text, padding: "12px", borderRadius: 10, outline: "none", fontSize: 14 }}
           />
           <button 
             onClick={handleSend}
             disabled={loading}
-            style={{ 
-              background: T.accent, 
-              color: "#000", 
-              border: "none", 
-              padding: "0 18px", 
-              borderRadius: 10, 
-              fontWeight: 700, 
-              cursor: "pointer",
-              opacity: loading ? 0.5 : 1
-            }}
+            style={{ background: T.accent, color: "#000", border: "none", padding: "0 18px", borderRadius: 10, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.5 : 1 }}
           >
             전송
           </button>
@@ -1349,14 +1145,12 @@ Your tone is professional, objective, and analytical.
       </div>
     </div>
   );
-  
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  사이드바 (데스크톱 전용 - 탭 분리 적용)
+//  사이드바 (데스크톱 전용)
 // ─────────────────────────────────────────────────────────────────────────────
 function Sidebar({ tab, setTab, tabs, summary }) {
-  // 상단으로 옮길 특수 탭 분리
   const mainTabs = tabs.filter(t => !["assets", "qa"].includes(t.id));
   const topTabs  = tabs.filter(t => ["assets", "qa"].includes(t.id));
 
@@ -1367,7 +1161,6 @@ function Sidebar({ tab, setTab, tabs, summary }) {
         <p style={{ color:T.accent, fontSize:11, fontWeight:700, margin:"2px 0 0", letterSpacing:"1px" }}>FINANCE</p>
       </div>
 
-      {/* 상단 배치 탭 (자산, Q&A) */}
       <div style={{ padding:"12px", borderBottom:`1px solid ${T.border}`, background: "rgba(255,255,255,0.02)" }}>
         <p style={{ color:T.textDim, fontSize:9, margin:"0 8px 8px", fontWeight:700, letterSpacing:"0.5px" }}>SPECIAL SERVICES</p>
         {topTabs.map(t => (
@@ -1378,7 +1171,6 @@ function Sidebar({ tab, setTab, tabs, summary }) {
         ))}
       </div>
 
-      {/* 기본 투자 탭 */}
       <nav style={{ padding:"12px", flex:1 }}>
         <p style={{ color:T.textDim, fontSize:9, margin:"0 8px 8px", fontWeight:700, letterSpacing:"0.5px" }}>INVESTMENT DATA</p>
         {mainTabs.map(t => (
@@ -1395,8 +1187,9 @@ function Sidebar({ tab, setTab, tabs, summary }) {
     </div>
   );
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
-//  메인 App (상단 탭 분리 레이아웃 완성본)
+//  메인 App 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("overview");
@@ -1406,7 +1199,15 @@ export default function App() {
   const bp = useBP();
   const isDesktop = bp === "desktop";
 
-  // 모든 탭 정의
+  // ★ 1. Q&A 검색어 상태 
+  const [qaInput, setQaInput] = useState(""); 
+
+  // ★ 2. 종합 탭에서 질문 시 Q&A 탭으로 이동시키는 함수 (이름 불일치 및 setTab 에러 해결 완료)
+  const handleAskAiFromOverview = (text) => {
+    setQaInput(text);      
+    setTab("qa");          
+  };
+
   const tabs = [
     { id:"overview", label:"종합",   icon:"🏠" },
     { id:"returns",  label:"수익률", icon:"📈" },
@@ -1424,18 +1225,18 @@ export default function App() {
     assets:"자산 구성", qa:"AI 금융 비서"
   };
 
-  // ── ★ 핵심: 누락되었던 renderTab 함수를 App 내부에 정의 ──
   const renderTab = () => {
     const props = { data: appData, bp };
+    
     switch (tab) {
-      case "overview": return <OverviewTab  {...props}/>;
+      case "overview": return <OverviewTab  {...props} onAskAi={handleAskAiFromOverview} />;
       case "returns":  return <ReturnsTab   {...props}/>;
       case "cumul":    return <CumulativeTab{...props}/>;
       case "dividend": return <DividendTab  {...props}/>;
       case "monthly":  return <MonthlyTab   {...props}/>;
       case "holdings": return <HoldingsTab  {...props}/>;
       case "assets":   return <AssetsTab    {...props}/>;
-      case "qa":       return <QaTab        {...props}/>;
+      case "qa":       return <QaTab        {...props} input={qaInput} setInput={setQaInput} />;
       default:         return <OverviewTab  {...props}/>;
     }
   };
@@ -1484,7 +1285,6 @@ export default function App() {
         </div>
       ) : (
         <div style={{ maxWidth:768, margin:"0 auto", position:"relative" }}>
-          {/* 모바일 상단: 자산(🏦)과 Q&A(🤖) 고정 배치 */}
           <div style={{ padding:"14px 18px", position:"sticky", top:0, background:`${T.bg}ee`, backdropFilter:"blur(20px)", zIndex:10, borderBottom:`1px solid ${T.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
               <h1 style={{ color:T.text, fontSize:17, fontWeight:700, margin:0 }}>{titles[tab]}</h1>
@@ -1504,7 +1304,6 @@ export default function App() {
           
           <div style={{ paddingTop:12 }}>{renderTab()}</div>
 
-          {/* 하단 탭 바: 나머지 투자 지표 배치 */}
           <div style={{ position:"fixed", bottom:0, left:0, right:0, background:`${T.bg}f8`, backdropFilter:"blur(20px)", borderTop:`1px solid ${T.border}`, display:"flex", padding:"6px 0 env(safe-area-inset-bottom,6px)", zIndex:20 }}>
             {tabs.filter(t => !["assets", "qa"].includes(t.id)).map(t => (
               <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, border:"none", background:"none" }}>
