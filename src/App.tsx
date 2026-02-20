@@ -1257,51 +1257,61 @@ function QaTab({ data, bp }) {
     </div>
   );
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
-//  사이드바 (데스크톱 전용)
+//  사이드바 (데스크톱 전용 - 탭 분리 적용)
 // ─────────────────────────────────────────────────────────────────────────────
 function Sidebar({ tab, setTab, tabs, summary }) {
+  // 상단으로 옮길 특수 탭 분리
+  const mainTabs = tabs.filter(t => !["assets", "qa"].includes(t.id));
+  const topTabs  = tabs.filter(t => ["assets", "qa"].includes(t.id));
+
   return (
     <div style={{ width:220, flexShrink:0, background:T.surface, borderRight:`1px solid ${T.border}`, display:"flex", flexDirection:"column", position:"sticky", top:0, height:"100vh", overflowY:"auto" }}>
       <div style={{ padding:"28px 24px 20px", borderBottom:`1px solid ${T.border}` }}>
         <h1 style={{ color:T.text, fontSize:16, fontWeight:800, margin:0, letterSpacing:"-0.5px" }}>SIMPSON'S</h1>
         <p style={{ color:T.accent, fontSize:11, fontWeight:700, margin:"2px 0 0", letterSpacing:"1px" }}>FINANCE</p>
-        <p style={{ color:T.textDim, fontSize:10, margin:"8px 0 0" }}>2026.02.13 기준</p>
       </div>
-      <div style={{ padding:"16px 24px", borderBottom:`1px solid ${T.border}` }}>
-        <p style={{ color:T.textDim, fontSize:10, margin:"0 0 4px", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.5px" }}>총 수익률</p>
-        <p style={{ color:T.accent, fontSize:26, fontWeight:800, margin:0, fontFamily:"'IBM Plex Mono',monospace" }}>{fP(summary.returnPct||0)}</p>
-        <p style={{ color:T.textSec, fontSize:11, margin:"4px 0 0" }}>{fK(summary.evalTotal||0)}원</p>
+
+      {/* 상단 배치 탭 (자산, Q&A) */}
+      <div style={{ padding:"12px", borderBottom:`1px solid ${T.border}`, background: "rgba(255,255,255,0.02)" }}>
+        <p style={{ color:T.textDim, fontSize:9, margin:"0 8px 8px", fontWeight:700, letterSpacing:"0.5px" }}>SPECIAL SERVICES</p>
+        {topTabs.map(t => (
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 14px", marginBottom:4, borderRadius:10, border:`1px solid ${tab===t.id?T.borderActive:"transparent"}`, background:tab===t.id?T.accentDim:"transparent", cursor:"pointer", transition:"all 0.15s" }}>
+            <span style={{ fontSize:16 }}>{t.icon}</span>
+            <span style={{ color:tab===t.id?T.accent:T.text, fontSize:13, fontWeight:tab===t.id?700:600 }}>{t.label}</span>
+          </button>
+        ))}
       </div>
+
+      {/* 기본 투자 탭 */}
       <nav style={{ padding:"12px", flex:1 }}>
-        {tabs.map(t => (
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"11px 14px", marginBottom:4, borderRadius:10, border:`1px solid ${tab===t.id?T.borderActive:"transparent"}`, background:tab===t.id?T.accentDim:"transparent", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
-            <span style={{ fontSize:18 }}>{t.icon}</span>
+        <p style={{ color:T.textDim, fontSize:9, margin:"0 8px 8px", fontWeight:700, letterSpacing:"0.5px" }}>INVESTMENT DATA</p>
+        {mainTabs.map(t => (
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"10px 14px", marginBottom:4, borderRadius:10, border:`1px solid ${tab===t.id?T.borderActive:"transparent"}`, background:tab===t.id?T.accentDim:"transparent", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
+            <span style={{ fontSize:17 }}>{t.icon}</span>
             <span style={{ color:tab===t.id?T.accent:T.textSec, fontSize:13, fontWeight:tab===t.id?700:500 }}>{t.label}</span>
-            {tab===t.id && <div style={{ marginLeft:"auto", width:4, height:4, borderRadius:2, background:T.accent }}/>}
           </button>
         ))}
       </nav>
+      
       <div style={{ padding:"16px 24px", borderTop:`1px solid ${T.border}` }}>
-        <p style={{ color:T.textDim, fontSize:10, margin:0 }}>투자기간 {summary.months||0}개월</p>
-        <p style={{ color:T.textDim, fontSize:10, margin:"2px 0 0" }}>원금 {fK(summary.principal||0)}원</p>
+        <p style={{ color:T.textDim, fontSize:10, margin:0 }}>{fP(summary.returnPct)} 수익 중</p>
       </div>
     </div>
   );
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
-//  메인 App
+//  메인 App (상단 탭 분리 레이아웃 완성본)
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("overview");
-  const [status, setStatus]   = useState("loading");  // "loading" | "error" | "done"
+  const [status, setStatus]   = useState("loading");
   const [errMsg, setErrMsg]   = useState("");
   const [appData, setAppData] = useState(null);
   const bp = useBP();
   const isDesktop = bp === "desktop";
 
+  // 모든 탭 정의
   const tabs = [
     { id:"overview", label:"종합",   icon:"🏠" },
     { id:"returns",  label:"수익률", icon:"📈" },
@@ -1310,50 +1320,16 @@ export default function App() {
     { id:"monthly",  label:"월별",   icon:"📅" },
     { id:"holdings", label:"종목",   icon:"💎" },
     { id:"assets",   label:"자산",   icon:"🏦" },
-    { id:"qa",       label:"Q&A",    icon:"🤖" }, // <-- 추가
+    { id:"qa",       label:"Q&A",    icon:"🤖" },
   ];
-  
+
   const titles = {
-    overview:"포트폴리오 종합", returns:"수익률 분석",
-    cumul:"누적 현황",          dividend:"배당 분석",
-    monthly:"월별 상세",        holdings:"종목별 현황",
-    assets:"자산 구성",         // <-- 추가된 부분
+    overview:"포트폴리오 종합", returns:"수익률 분석", cumul:"누적 현황", 
+    dividend:"배당 분석", monthly:"월별 상세", holdings:"종목별 현황",
+    assets:"자산 구성", qa:"AI 금융 비서"
   };
 
-  async function loadData() {
-    setStatus("loading");
-    try {
-      const [mRes, hRes] = await Promise.all([
-        fetch(SHEET_URLS.MONTHLY),
-        fetch(SHEET_URLS.HOLDINGS),
-      ]);
-      if (!mRes.ok) throw new Error(`MONTHLY 시트 오류: HTTP ${mRes.status}`);
-      if (!hRes.ok) throw new Error(`HOLDINGS 시트 오류: HTTP ${hRes.status}`);
-
-      const [mText, hText] = await Promise.all([mRes.text(), hRes.text()]);
-
-      // parseMonthlyTSV에서 SUMMARY 객체를 함께 받아옵니다.
-      const { SUMMARY, MONTHLY } = parseMonthlyTSV(mText);
-      const HOLDINGS  = parseHoldingsTSV(hText);
-
-      if (!MONTHLY.length)  throw new Error("MONTHLY 데이터를 파싱할 수 없습니다.");
-      if (!HOLDINGS.length) throw new Error("HOLDINGS 데이터를 파싱할 수 없습니다.");
-
-      const DIVIDENDS = deriveDividends(MONTHLY);
-
-      setAppData({ SUMMARY, MONTHLY, HOLDINGS, DIVIDENDS });
-      setStatus("done");
-    } catch (e) {
-      setErrMsg(e.message || "알 수 없는 오류가 발생했습니다.");
-      setStatus("error");
-    }
-  }
-
-  useEffect(() => { loadData(); }, []);
-
-  if (status === "loading") return <LoadingScreen/>;
-  if (status === "error")   return <ErrorScreen message={errMsg} onRetry={loadData}/>;
-
+  // ── ★ 핵심: 누락되었던 renderTab 함수를 App 내부에 정의 ──
   const renderTab = () => {
     const props = { data: appData, bp };
     switch (tab) {
@@ -1364,47 +1340,81 @@ export default function App() {
       case "monthly":  return <MonthlyTab   {...props}/>;
       case "holdings": return <HoldingsTab  {...props}/>;
       case "assets":   return <AssetsTab    {...props}/>;
-      case "qa":       return <QaTab        {...props}/>; // <-- 추가
-      default:         return null;
+      case "qa":       return <QaTab        {...props}/>;
+      default:         return <OverviewTab  {...props}/>;
     }
   };
 
+  async function loadData() {
+    setStatus("loading");
+    try {
+      const [mRes, hRes] = await Promise.all([
+        fetch(SHEET_URLS.MONTHLY),
+        fetch(SHEET_URLS.HOLDINGS),
+      ]);
+      const [mText, hText] = await Promise.all([mRes.text(), hRes.text()]);
+      const { SUMMARY, MONTHLY } = parseMonthlyTSV(mText);
+      const HOLDINGS = parseHoldingsTSV(hText);
+      const DIVIDENDS = deriveDividends(MONTHLY);
+      setAppData({ SUMMARY, MONTHLY, HOLDINGS, DIVIDENDS });
+      setStatus("done");
+    } catch (e) {
+      setErrMsg(e.message);
+      setStatus("error");
+    }
+  }
+
+  useEffect(() => { loadData(); }, []);
+
+  if (status === "loading") return <LoadingScreen/>;
+  if (status === "error")   return <ErrorScreen message={errMsg} onRetry={loadData}/>;
+
   return (
-    <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'IBM Plex Sans KR','Noto Sans KR',sans-serif" }}>
+    <div style={{ minHeight:"100vh", background:T.bg, fontFamily:"'IBM Plex Sans KR',sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         body{background:${T.bg};overflow-x:hidden}
-        ::-webkit-scrollbar{width:4px;height:4px}
-        ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:4px}
-        ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15)}
       `}</style>
 
       {isDesktop ? (
-        /* ── Desktop: 사이드바 + 메인 콘텐츠 ── */
         <div style={{ display:"flex", minHeight:"100vh" }}>
           <Sidebar tab={tab} setTab={setTab} tabs={tabs} summary={appData.SUMMARY}/>
           <div style={{ flex:1, minWidth:0, overflowY:"auto" }}>
             <div style={{ padding:"20px 28px 16px", position:"sticky", top:0, background:`${T.bg}ee`, backdropFilter:"blur(20px)", zIndex:10, borderBottom:`1px solid ${T.border}` }}>
-              <h2 style={{ color:T.text, fontSize:20, fontWeight:800, margin:0, letterSpacing:"-0.5px" }}>{titles[tab]}</h2>
+              <h2 style={{ color:T.text, fontSize:20, fontWeight:800, margin:0 }}>{titles[tab]}</h2>
             </div>
             <div style={{ paddingTop:8 }}>{renderTab()}</div>
           </div>
         </div>
       ) : (
-        /* ── Mobile / Tablet: 하단 탭 바 ── */
-        <div style={{ maxWidth:bp==="tablet"?768:520, margin:"0 auto", position:"relative" }}>
-          <div style={{ padding:"14px 18px 10px", position:"sticky", top:0, background:`${T.bg}ee`, backdropFilter:"blur(20px)", zIndex:10, borderBottom:`1px solid ${T.border}` }}>
-            <h1 style={{ color:T.text, fontSize:18, fontWeight:700, margin:0, letterSpacing:"-0.5px" }}>{titles[tab]}</h1>
-            <p style={{ color:T.textDim, fontSize:11, margin:"1px 0 0" }}>SIMPSON'S FINANCE · 2026.02.13 기준</p>
+        <div style={{ maxWidth:768, margin:"0 auto", position:"relative" }}>
+          {/* 모바일 상단: 자산(🏦)과 Q&A(🤖) 고정 배치 */}
+          <div style={{ padding:"14px 18px", position:"sticky", top:0, background:`${T.bg}ee`, backdropFilter:"blur(20px)", zIndex:10, borderBottom:`1px solid ${T.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div>
+              <h1 style={{ color:T.text, fontSize:17, fontWeight:700, margin:0 }}>{titles[tab]}</h1>
+              <p style={{ color:T.textDim, fontSize:9, margin:"1px 0 0" }}>SIMPSON'S FINANCE REPORT</p>
+            </div>
+            <div style={{ display:"flex", gap:6 }}>
+              {["assets", "qa"].map(id => {
+                const t = tabs.find(x => x.id === id);
+                return (
+                  <button key={id} onClick={()=>setTab(id)} style={{ padding:"7px 10px", borderRadius:10, background:tab===id?T.accentDim:T.card, border:`1px solid ${tab===id?T.accent:T.border}`, color:tab===id?T.accent:T.textSec, fontSize:12, fontWeight:700, display:"flex", alignItems:"center", gap:4 }}>
+                    <span>{t.icon}</span>{t.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+          
           <div style={{ paddingTop:12 }}>{renderTab()}</div>
-          <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:bp==="tablet"?768:520, background:`${T.bg}f8`, backdropFilter:"blur(20px)", borderTop:`1px solid ${T.border}`, display:"flex", padding:"5px 0 env(safe-area-inset-bottom,5px)", zIndex:20 }}>
-            {tabs.map(t => (
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:1, padding:"6px 0", border:"none", background:"none", cursor:"pointer" }}>
-                <span style={{ fontSize:17, filter:tab===t.id?"none":"grayscale(1) opacity(0.3)", transition:"filter 0.2s" }}>{t.icon}</span>
-                <span style={{ fontSize:9, fontWeight:tab===t.id?700:400, color:tab===t.id?T.accent:T.textDim, transition:"color 0.2s" }}>{t.label}</span>
+
+          {/* 하단 탭 바: 나머지 투자 지표 배치 */}
+          <div style={{ position:"fixed", bottom:0, left:0, right:0, background:`${T.bg}f8`, backdropFilter:"blur(20px)", borderTop:`1px solid ${T.border}`, display:"flex", padding:"6px 0 env(safe-area-inset-bottom,6px)", zIndex:20 }}>
+            {tabs.filter(t => !["assets", "qa"].includes(t.id)).map(t => (
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, border:"none", background:"none" }}>
+                <span style={{ fontSize:18, opacity:tab===t.id?1:0.3 }}>{t.icon}</span>
+                <span style={{ fontSize:9, fontWeight:tab===t.id?700:400, color:tab===t.id?T.accent:T.textDim }}>{t.label}</span>
               </button>
             ))}
           </div>
