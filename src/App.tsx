@@ -35,11 +35,16 @@ const SC = ["#42A5F5","#FF7043","#66BB6A","#FFD740","#CE93D8","#4DD0E1","#FF8A65
 
 /** 문자열 → 숫자 변환 (쉼표, %, ₩ 등 특수기호 완벽 제거) */
 function n(v) {
-  if (v === null || v === undefined || v === "" || v === "#N/A" || v === "#REF!") return 0;
+  if (v === null || v === undefined || v === "" || v === "#N/A") return 0;
   if (typeof v === "number") return v;
   
-  // ₩, $, %, 쉼표, 공백 모두 제거 (마이너스 기호와 소수점은 남김)
-  const s = String(v).replace(/[₩$,\s%]/g, "").trim();
+  const s = String(v).replace(/[₩$,\s]/g, "").trim();
+  
+  // 퍼센트 기호가 있으면 제거하고 숫자로 변환
+  if (s.includes("%")) {
+    return parseFloat(s.replace("%", ""));
+  }
+  
   const num = parseFloat(s);
   return isNaN(num) ? 0 : num;
 }
@@ -95,107 +100,83 @@ function parseDate(str) {
 //    58 = 누적배당수익  → cumDividend
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  MONTHLY TSV 파싱 (누적배당 91만원 오류 완벽 해결 및 고정 인덱스 복구)
-// ─────────────────────────────────────────────────────────────────────────────
 function parseMonthlyTSV(text) {
   const rows = text.split("\n").map(r => r.split("\t"));
+  const header = rows[7] || [];
+  const findIdx = (name) => header.findIndex(h => h.includes(name));
+  
+  const idxCumDiv = findIdx("누적 배당 수익");
+  const idxTotal  = findIdx("TOTAL");
 
   const r2 = rows[2] || [];
   const r3 = rows[3] || [];
   const r4 = rows[4] || [];
 
   const SUMMARY = {
-    principal:       n(r2[10]) * 1000,
-    profit:          n(r2[11]) * 1000,
-    evalTotal:       n(r2[12]) * 1000,
-    returnPct:       n(r2[13]),
-    months:          n(r3[2]),
-    highReturnPct:   n(r3[4]),
-    fromHighPct:     n(r3[6]),
-    cumDividend:     n(r3[11]) * 1000,
-    avgMonthlyProfit:n(r4[2])  * 1000,
-    highProfit:      n(r4[4])  * 1000,
-    cumCapGain:      n(r4[11]) * 1000, 
+    principal: n(r2[10]) * 1000,
+    profit:    n(r2[11]) * 1000,
+    evalTotal: n(r2[12]) * 1000,
+    // 요약 수익률이 비정상적으로 크면 100으로 나누어 보정 (10839 -> 108.39)
+    returnPct: n(r2[13]) > 500 ? n(r2[13]) / 100 : n(r2[13]),
+    months:    n(r3[2]),
+    highReturnPct: n(r3[4]) > 500 ? n(r3[4]) / 100 : n(r3[4]),
+    fromHighPct:   n(r3[6]),
+    cumDividend:   n(r3[11]) * 1000,
+    avgMonthlyProfit: n(r4[2]) * 1000,
+    cumCapGain:    n(r4[11]) * 1000 || (n(r2[11]) * 1000 - n(r3[11]) * 1000)
   };
 
-  const monthlyMap = new Map(); 
+  const monthlyMap = new Map();
+  let runningCumDiv = 0;
+  let firstDividendFound = false;
 
-  for (let i = 8; i < rows.length; i++) {
+  for (let i = 14; i < rows.length; i++) {
     const row = rows[i];
-    if (!row || row.length < 5) continue;
+    if (!row || row.length < 10) continue;
 
-    // 날짜 및 앞쪽 기본 데이터는 유동적으로 찾음
-    let dateStr = null;
     let dIdx = -1;
     for(let j=0; j<4; j++) {
-      if (parseDate(row[j])) {
-        dateStr = row[j];
-        dIdx = j;
-        break;
-      }
+      if (parseDate(row[j])) { dIdx = j; break; }
     }
     if (dIdx === -1) continue; 
 
-    const date = parseDate(dateStr);
-    const principal = n(row[dIdx + 1]) * 1000; 
-    if (principal === 0) continue; 
+    const date = parseDate(row[dIdx]);
+    const principal = n(row[dIdx + 1]) * 1000;
+    if (principal <= 0) continue; 
+
+    const rawVal = n(row[idxCumDiv !== -1 ? idxCumDiv : 58]) * 1000;
+    if (rawVal > 0) { firstDividendFound = true; runningCumDiv = rawVal; }
 
     const profit = n(row[dIdx + 3]) * 1000;
+    const curCumDiv = firstDividendFound ? runningCumDiv : 0;
     
-    // ── ★ 핵심: 자산 및 배당 데이터는 오류 방지를 위해 시트의 고정 인덱스 사용 ──
-    const deposit    = n(row[45]) * 1000; // AT열: 예적금
-    const invest     = n(row[46]) * 1000; // AU열: 투자
-    const pension    = n(row[49]) * 1000; // AX열: 연금
-    const car        = n(row[51]) * 1000; // AZ열: 자동차
-    const jeonse     = n(row[52]) * 1000; // BA열: 전세금
-    const assetTotal = n(row[53]) * 1000; // BB열: TOTAL
-    const tBond      = n(row[54]) * 1000; // BC열: T채권
-    const accCard    = n(row[55]) * 1000; // BD열: 계좌-카드
-    const realEstate = n(row[56]) * 1000; // BE열: 부동산-대출
-    const dividend   = n(row[57]) * 1000; // BF열: 배당수익 (월별)
-    const cumDividend= n(row[58]) * 1000; // BG열: 누적 배당 수익
-
-    const existing = monthlyMap.get(date) || {};
-    const mergedProfit = profit !== 0 ? profit : (existing.profit || 0);
-    const mergedCumDiv = cumDividend !== 0 ? cumDividend : (existing.cumDividend || 0);
+    // ★ 수익률 필터링: 원금이 1,000만원 미만인 극초기 구간의 튀는 수익률은 0으로 처리하거나 제한
+    let rawReturn = n(row[dIdx + 6]);
+    if (principal < 10000000 && (rawReturn > 500 || rawReturn < -500)) {
+      rawReturn = 0; 
+    } else if (rawReturn > 500) {
+      rawReturn = rawReturn / 100; // 100배 뻥튀기 방어
+    }
 
     monthlyMap.set(date, {
       date,
-      principal:     principal !== 0 ? principal : (existing.principal || 0),
-      evalTotal:     (n(row[dIdx + 2]) * 1000) || existing.evalTotal || 0,
-      profit:        mergedProfit,
-      principalChg:  (n(row[dIdx + 4]) * 1000) || existing.principalChg || 0,
-      profitChg:     (n(row[dIdx + 5]) * 1000) || existing.profitChg || 0,
-      returnPct:     n(row[dIdx + 6]) || existing.returnPct || 0,
-      dividend:      dividend !== 0 ? dividend : (existing.dividend || 0),
-      cumDividend:   mergedCumDiv,
-      capGain:       mergedProfit - mergedCumDiv,
-      deposit:       deposit !== 0 ? deposit : (existing.deposit || 0),
-      invest:        invest !== 0 ? invest : (existing.invest || 0),
-      pension:       pension !== 0 ? pension : (existing.pension || 0),
-      car:           car !== 0 ? car : (existing.car || 0),
-      jeonse:        jeonse !== 0 ? jeonse : (existing.jeonse || 0),
-      assetTotal:    assetTotal !== 0 ? assetTotal : (existing.assetTotal || 0),
-      tBond:         tBond !== 0 ? tBond : (existing.tBond || 0),
-      accCard:       accCard !== 0 ? accCard : (existing.accCard || 0),
-      realEstate:    realEstate !== 0 ? realEstate : (existing.realEstate || 0),
+      principal,
+      evalTotal:     (n(row[dIdx + 2]) * 1000) || principal,
+      profit:        profit,
+      principalChg:  n(row[dIdx + 4]) * 1000,
+      returnPct:     rawReturn,
+      cumDividend:   curCumDiv,
+      capGain:       profit - curCumDiv,
+      assetTotal:    n(row[idxTotal !== -1 ? idxTotal : 53]) * 1000 || 0,
+      invest: n(row[46])*1000||0, realEstate: n(row[56])*1000||0, tBond: n(row[54])*1000||0,
+      deposit: n(row[45])*1000||0, pension: n(row[49])*1000||0, car: n(row[51])*1000||0,
+      jeonse: n(row[52])*1000||0, accCard: n(row[55])*1000||0
     });
   }
 
-  const MONTHLY = Array.from(monthlyMap.values());
-  MONTHLY.sort((a, b) => a.date.localeCompare(b.date));
-
-  // 최신 달 데이터로 SUMMARY 강제 보정
-  if (MONTHLY.length > 0) {
-    const latest = MONTHLY[MONTHLY.length - 1];
-    SUMMARY.cumDividend = latest.cumDividend || 0;
-    SUMMARY.cumCapGain  = latest.capGain || 0;
-  }
-
+  const MONTHLY = Array.from(monthlyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
   return { SUMMARY, MONTHLY };
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  HOLDINGS TSV 파싱
@@ -261,65 +242,102 @@ function parseHoldingsTSV(text) {
 //    cumDiv      = 누적 배당합계
 //    cumTotal    = 해당 연도말 누적수익 (절대값)
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+//  DIVIDENDS 연도별 집계 (보정된 MONTHLY 데이터 기반)
+// ─────────────────────────────────────────────────────────────────────────────
 function deriveDividends(monthly) {
-  if (!monthly.length) return [];
+  if (!monthly || !monthly.length) return [];
 
   const byYear = {};
+  
+  // 연도별 데이터 그룹화
   monthly.forEach(d => {
     const yr = d.date.substring(0, 4);
-    if (!byYear[yr]) byYear[yr] = { dividends: [], lastProfit: 0, lastPrincipal: 0, lastEval: 0 };
-    byYear[yr].dividends.push(d.dividend || 0);
-    byYear[yr].lastProfit    = d.profit;
-    byYear[yr].lastPrincipal = d.principal;
-    byYear[yr].lastEval      = d.evalTotal;
+    if (!byYear[yr]) {
+      byYear[yr] = { 
+        monthlyDividends: [], 
+        cumDividends: [],
+        lastProfit: 0, 
+        lastPrincipal: 0, 
+        lastEval: 0 
+      };
+    }
+    // 월별 배당금과 누적 배당금을 모두 수집
+    byYear[yr].monthlyDividends.push(d.dividend || 0);
+    byYear[yr].cumDividends.push(d.cumDividend || 0);
+    byYear[yr].lastProfit    = d.profit || 0;
+    byYear[yr].lastPrincipal = d.principal || 0;
+    byYear[yr].lastEval      = d.evalTotal || 0;
   });
 
-  let cumDiv = 0;
-  let cumCapGain = 0;
+  let prevYearEndCumDiv = 0;
   let prevProfit = 0;
 
-  const sorted = Object.entries(byYear).sort((a, b) => a[0].localeCompare(b[0]));
+  const sortedYears = Object.keys(byYear).sort();
 
-  const result = sorted.map(([yr, v]) => {
-    const divIncome    = Math.round(v.dividends.reduce((s, x) => s + x, 0));
+  const result = sortedYears.map(yr => {
+    const v = byYear[yr];
+    
+    // 1. 월별 배당금 합계 계산
+    let divIncome = v.monthlyDividends.reduce((s, x) => s + x, 0);
+    
+    // 2. 만약 월별 합계가 0이라면, 연말 누적 배당금 차액으로 역산 (안전장치)
+    const yearEndCumDiv = Math.max(...v.cumDividends);
+    if (divIncome <= 0 && yearEndCumDiv > prevYearEndCumDiv) {
+      divIncome = yearEndCumDiv - prevYearEndCumDiv;
+    }
+
     const totalReturn  = v.lastProfit - prevProfit;
     const capGain      = totalReturn - divIncome;
-    cumDiv            += divIncome;
-    cumCapGain        += capGain;
-    prevProfit         = v.lastProfit;
-
-    return {
+    
+    const item = {
       year:             parseInt(yr),
-      divIncome,
-      capGain,
-      totalReturn,
-      divGrowth:        0,      // 아래에서 계산
-      cumDiv,
-      cumCapGain,
+      divIncome:        Math.max(0, divIncome),
+      capGain:          capGain,
+      totalReturn:      totalReturn,
+      cumDiv:           yearEndCumDiv,
       cumTotal:         v.lastProfit,
       yearEndPrincipal: v.lastPrincipal,
       yearEndEval:      v.lastEval,
     };
+
+    // 다음 연도 계산을 위해 값 업데이트
+    prevYearEndCumDiv = yearEndCumDiv;
+    prevProfit = v.lastProfit;
+
+    return item;
   });
 
-  // divGrowth 계산
+  // 전년 대비 배당 성장률(divGrowth) 계산
   return result.map((d, i) => ({
     ...d,
-    divGrowth: i === 0 ? 0 : +((d.divIncome / result[i - 1].divIncome - 1) * 100).toFixed(2),
+    divGrowth: i === 0 || result[i-1].divIncome === 0 
+      ? 0 
+      : +((d.divIncome / result[i-1].divIncome - 1) * 100).toFixed(2),
   }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  포맷 헬퍼
 // ─────────────────────────────────────────────────────────────────────────────
+// 숫자를 '억', '만' 단위로 포맷팅 (에러 방지 로직 추가)
 const fK = (v) => {
-  const a = Math.abs(v);
-  if (a >= 100000000) return (v / 100000000).toFixed(1) + "억";
-  if (a >= 10000)     return Math.round(v / 10000).toLocaleString() + "만";
-  return v.toLocaleString();
+  if (v === undefined || v === null || isNaN(v)) return "0"; // 값이 없으면 0 반환
+  const val = Number(v);
+  if (Math.abs(val) >= 100000000) return (val / 100000000).toFixed(1) + "억";
+  if (Math.abs(val) >= 10000) return (val / 10000).toLocaleString(undefined, {maximumFractionDigits:0}) + "만";
+  return val.toLocaleString();
 };
 const fF = (v) => (v > 0 ? "+" : "") + Math.abs(v).toLocaleString() + "원";
-const fP = (v) => (v > 0 ? "+" : "") + v.toFixed(2) + "%";
+// 퍼센트 포맷팅 (무적 방어막 추가)
+
+const fP = (v) => {
+  if (v === undefined || v === null || isNaN(v)) return "0.00%";
+  const val = Number(v);
+  // 값이 1000 이상으로 튀면 데이터 파싱 오류로 간주하고 0.00% 출력하여 차트 보호
+  if (Math.abs(val) > 1000) return "0.00%";
+  return val.toFixed(2) + "%";
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  반응형 브레이크포인트 훅
@@ -1123,6 +1141,124 @@ function HoldingsTab({ data, bp }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Q&A (AI 비서) 탭 컴포넌트
+// ─────────────────────────────────────────────────────────────────────────────
+function QaTab({ data, bp }) {
+  const { SUMMARY, MONTHLY, HOLDINGS } = data;
+  const isDesktop = bp === "desktop";
+  const pad = isDesktop ? "0 28px 48px" : "0 16px 100px";
+
+  // 채팅 메시지 상태 관리
+  const [messages, setMessages] = useState([
+    { role: "model", text: "안녕하세요! Simpson님의 자산 현황이나 특정 종목에 대해 무엇이든 물어보세요. 🤖\n(예: '작년 12월 총자산은 얼마였어?', 'SPGI 오늘 주가는 어때?')" }
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Gemini API 호출 함수
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+
+    const userText = input;
+    setMessages(prev => [...prev, { role: "user", text: userText }]);
+    setInput("");
+    setLoading(true);
+
+    // AI에게 Simpson님의 데이터를 학습시킬 컨텍스트(배경지식) 구성
+    // (토큰 절약을 위해 꼭 필요한 데이터만 요약해서 전달)
+    const contextData = {
+      총요약: { 총평가금액: SUMMARY.evalTotal, 투자원금: SUMMARY.principal, 누적배당: SUMMARY.cumDividend },
+      월별추이: MONTHLY.map(m => ({ 날짜: m.date, 총자산: m.assetTotal, 투자원금: m.principal, 누적배당: m.cumDividend })),
+      보유종목: HOLDINGS.map(h => ({ 이름: h.name, 평가액: h.evalAmount, 수익률: h.returnPct.toFixed(2)+"%", 비중: h.weight.toFixed(1)+"%" }))
+    };
+
+    const systemPrompt = `너는 Simpson의 개인 자산 관리 AI 비서야.
+    다음은 Simpson의 현재 포트폴리오 데이터야: ${JSON.stringify(contextData)}
+    
+    1. 사용자가 본인의 자산에 대해 물어보면 위 데이터를 바탕으로 정확하고 친절하게 대답해줘. (금액은 보기 좋게 '만 원', '억 원' 단위로 변환해줘)
+    2. 사용자가 실시간 주가나 외부 금융 정보를 물어보면, 네가 가진 최신 지식을 활용해서 대답해줘.
+    3. 답변은 너무 길지 않게 핵심만 명확하게 해줘.`;
+
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("API 키가 없습니다.");
+      }
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n사용자 질문: ${userText}` }] }]
+        })
+      });
+
+      const resData = await response.json();
+      const reply = resData.candidates[0].content.parts[0].text;
+      
+      setMessages(prev => [...prev, { role: "model", text: reply }]);
+    } catch (error) {
+      setMessages(prev => [...prev, { role: "model", text: "앗, 통신에 문제가 생겼거나 API 키가 설정되지 않았습니다. (.env 파일에 VITE_GEMINI_API_KEY를 확인해주세요)" }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: pad, display: "flex", flexDirection: "column", height: isDesktop ? "calc(100vh - 120px)" : "calc(100vh - 160px)" }}>
+      <div style={{ background: T.card, borderRadius: 16, border: `1px solid ${T.border}`, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        
+        {/* 채팅 내역 영역 */}
+        <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+          {messages.map((m, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+              <div style={{ 
+                background: m.role === "user" ? T.accentDim : T.surface, 
+                color: m.role === "user" ? T.accent : T.text, 
+                padding: "12px 16px", 
+                borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                maxWidth: "80%",
+                border: `1px solid ${m.role === "user" ? "transparent" : T.border}`,
+                lineHeight: 1.5,
+                fontSize: 13,
+                whiteSpace: "pre-wrap"
+              }}>
+                {m.text}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div style={{ display: "flex", justifyContent: "flex-start" }}>
+              <div style={{ background: T.surface, color: T.textDim, padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: 13 }}>
+                비서가 데이터를 분석하고 있습니다... ⏳
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 입력 영역 */}
+        <div style={{ padding: 16, background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", gap: 10 }}>
+          <input 
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            placeholder="자산 현황이나 주가를 물어보세요..."
+            style={{ flex: 1, background: T.background, border: `1px solid ${T.border}`, color: T.text, padding: "12px 16px", borderRadius: 12, outline: "none", fontSize: 14 }}
+          />
+          <button 
+            onClick={handleSend}
+            disabled={loading}
+            style={{ background: T.accent, color: "#fff", border: "none", padding: "0 20px", borderRadius: 12, fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}
+          >
+            전송
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  사이드바 (데스크톱 전용)
 // ─────────────────────────────────────────────────────────────────────────────
 function Sidebar({ tab, setTab, tabs, summary }) {
@@ -1173,7 +1309,8 @@ export default function App() {
     { id:"dividend", label:"배당",   icon:"💰" },
     { id:"monthly",  label:"월별",   icon:"📅" },
     { id:"holdings", label:"종목",   icon:"💎" },
-    { id:"assets",   label:"자산",   icon:"🏦" }, // <-- 추가된 부분
+    { id:"assets",   label:"자산",   icon:"🏦" },
+    { id:"qa",       label:"Q&A",    icon:"🤖" }, // <-- 추가
   ];
   
   const titles = {
@@ -1217,7 +1354,7 @@ export default function App() {
   if (status === "loading") return <LoadingScreen/>;
   if (status === "error")   return <ErrorScreen message={errMsg} onRetry={loadData}/>;
 
-const renderTab = () => {
+  const renderTab = () => {
     const props = { data: appData, bp };
     switch (tab) {
       case "overview": return <OverviewTab  {...props}/>;
@@ -1226,7 +1363,8 @@ const renderTab = () => {
       case "dividend": return <DividendTab  {...props}/>;
       case "monthly":  return <MonthlyTab   {...props}/>;
       case "holdings": return <HoldingsTab  {...props}/>;
-      case "assets":   return <AssetsTab    {...props}/>; // <-- 추가된 부분
+      case "assets":   return <AssetsTab    {...props}/>;
+      case "qa":       return <QaTab        {...props}/>; // <-- 추가
       default:         return null;
     }
   };
