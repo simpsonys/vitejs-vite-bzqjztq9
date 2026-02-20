@@ -1342,8 +1342,36 @@ function Sidebar({ tab, setTab, tabs, summary }) {
 //  메인 App 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [tab, setTab] = useState("overview");
-  
+
+  // 1. 실제 탭 상태를 저장하는 변수 (이름을 살짝 바꿨습니다)
+  const [tab, setTabState] = useState("overview");
+
+  // 2. 탭을 변경할 때 브라우저 방문 기록(History)에 발자국을 남기는 함수
+  // (기존 코드들이 setTab을 그대로 쓸 수 있도록 함수 이름을 setTab으로 맞췄습니다)
+  const setTab = (newTab) => {
+    if (tab === newTab) return;
+    // URL 뒤에 ?tab=이름 을 붙여서 브라우저가 이동한 것으로 착각하게 만듭니다.
+    window.history.pushState({ tab: newTab }, "", `?tab=${newTab}`);
+    setTabState(newTab);
+  };
+
+  // 3. 안드로이드 '물리 뒤로가기' 버튼 감지기
+  useEffect(() => {
+    // 앱을 처음 켰을 때(초기화), 현재 위치를 방문 기록에 등록해 둡니다.
+    window.history.replaceState({ tab: "overview" }, "", "?tab=overview");
+
+    // 뒤로가기 버튼이 눌렸을 때(popstate 이벤트) 실행될 함수
+    const handlePopState = (e) => {
+      if (e.state && e.state.tab) {
+        // 방문 기록에 남아있는 이전 탭 이름으로 화면을 바꿉니다.
+        setTabState(e.state.tab);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   const [status, setStatus]   = useState("loading");
   const [errMsg, setErrMsg]   = useState("");
   const [appData, setAppData] = useState(null);
