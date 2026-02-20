@@ -329,11 +329,13 @@ function OverviewTab({ data, bp, onAskAi }) {
   const { SUMMARY, MONTHLY, HOLDINGS } = data;
   const isDesktop = bp === "desktop";
   const isWide    = bp !== "mobile";
-  const isMobile  = bp === "mobile"; // ★ 에러 원인 해결: 모바일 판별 변수 추가! ★
+  const isMobile  = bp === "mobile"; 
   const pad   = isDesktop ? "0 28px 48px" : "0 16px 100px";
   const chartH = isDesktop ? 340 : isWide ? 280 : 250;
 
   const [quickQuestion, setQuickQuestion] = useState("");
+  const [showAllHoldings, setShowAllHoldings] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: 'originalRank', direction: 'asc' });
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && quickQuestion.trim() && onAskAi) {
@@ -349,11 +351,51 @@ function OverviewTab({ data, bp, onAskAi }) {
     { label: "시세차익",    value: fK(SUMMARY.cumCapGain)+"원",  color: T.blue }
   ];
 
-  // ★ 2. 모바일 화면일 때는 뒤의 2개(누적배당, 시세차익)만 뽑아서 씁니다. PC/와이드는 4개 전부 씁니다.
   const stats = isMobile ? allStats.slice(2, 4) : allStats;
+
+  // ─────────────────────────────────────────────────────────────
+  // ★ 차트 Y축 1억 단위 자동 계산 로직 ★
+  // ─────────────────────────────────────────────────────────────
+  // 데이터 중 가장 높은 값과 낮은 값을 찾습니다 (0 포함)
+  const maxVal = Math.max(...MONTHLY.map(m => Math.max(m.principal, m.evalTotal, m.profit, 0)));
+  const minVal = Math.min(...MONTHLY.map(m => Math.min(m.principal, m.evalTotal, m.profit, 0))); 
+
+  // 자산이 계속 불어나서 15억을 넘어가면 2억 단위로 넓히고, 그 전까지는 무조건 1억 단위로 맞춥니다.
+  const tickStep = maxVal > 1500000000 ? 200000000 : 100000000; 
+
+  const yMin = Math.floor(minVal / tickStep) * tickStep;
+  const yMax = Math.ceil(maxVal / tickStep) * tickStep;
+  
+  const yTicks = [];
+  for (let i = yMin; i <= yMax; i += tickStep) {
+    yTicks.push(i); // [ -1억, 0, 1억, 2억, 3억 ... ] 형태로 배열 생성
+  }
+
+  // 전체 종목 정렬 로직 (이전과 동일)
+  const holdingsWithRank = HOLDINGS.map((h, i) => ({ ...h, originalRank: i + 1 }));
+  const handleSort = (key) => {
+    let direction = 'desc';
+    if (sortConfig.key === key && sortConfig.direction === 'desc') direction = 'asc';
+    else if (sortConfig.key !== key && (key === 'originalRank' || key === 'name' || key === 'type')) direction = 'asc';
+    setSortConfig({ key, direction });
+  };
+  const sortedHoldings = [...holdingsWithRank].sort((a, b) => {
+    let aVal = a[sortConfig.key];
+    let bVal = b[sortConfig.key];
+    if (sortConfig.key === 'type') { aVal = a.country + a.type; bVal = b.country + b.type; }
+    if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+  const renderSortIcon = (key) => {
+    if (sortConfig.key !== key) return <span style={{ opacity: 0.3, fontSize: 10, marginLeft: 4 }}>↕</span>;
+    return <span style={{ color: T.accent, fontSize: 10, marginLeft: 4 }}>{sortConfig.direction === 'asc' ? "▲" : "▼"}</span>;
+  };
+  const thStyle = { cursor: "pointer", userSelect: "none", padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1 };
 
   return (
     <div style={{ padding:pad }}>
+      {/* 상단 4개 요약 통계 */}
       <div style={{ background:"linear-gradient(145deg,#131B26,#0E1319)", borderRadius:20, padding:isDesktop?"28px":"24px 20px", marginBottom:16, border:`1px solid ${T.border}`, position:"relative", overflow:"hidden" }}>
         <div style={{ position:"absolute", top:-30, right:-30, width:150, height:150, borderRadius:"50%", background:T.accentGlow, filter:"blur(40px)" }}/>
         <p style={{ color:T.textSec, fontSize:isDesktop?14:12, margin:"0 0 3px", fontWeight:500 }}>총 평가금액</p>
@@ -381,66 +423,32 @@ function OverviewTab({ data, bp, onAskAi }) {
         </div>
       </div>
 
-      {/* ★ AI 질문 박스 수정 (폴드 화면 뚫림 방지 적용) */}
-      <div style={{ 
-        marginBottom: 16, 
-        padding: "6px 8px 6px 16px", // 우측 패딩을 줄여 버튼이 착 달라붙게 수정
-        background: T.surface, 
-        borderRadius: 12, 
-        border: `1px solid ${T.accent}50`, 
-        display: "flex", 
-        alignItems: "center", 
-        gap: 10, 
-        boxShadow: "0 4px 12px rgba(0,0,0,0.2)" 
-      }}>
+      {/* AI 질문 박스 */}
+      <div style={{ marginBottom: 16, padding: "6px 8px 6px 16px", background: T.surface, borderRadius: 12, border: `1px solid ${T.accent}50`, display: "flex", alignItems: "center", gap: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
         <span style={{ fontSize: 22, flexShrink: 0 }}>🤖</span>
         <input 
           value={quickQuestion}
           onChange={(e) => setQuickQuestion(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="오늘 SPGI 주가 어때?"
-          style={{ 
-            flex: 1, 
-            minWidth: 0, // ★ 핵심: 플렉스 박스가 영역을 뚫고 나가는 것을 방지
-            background: "transparent", 
-            border: "none", 
-            color: T.text, 
-            fontSize: 16, 
-            outline: "none" 
-          }}
+          style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: T.text, fontSize: 16, outline: "none" }}
         />
         <button 
           onClick={() => quickQuestion.trim() && onAskAi && onAskAi(quickQuestion)}
-          style={{ 
-            background: "transparent", 
-            color: "#000", 
-            border: "1px solid #5A6272", 
-            padding: "8px 14px", 
-            borderRadius: 8, 
-            fontWeight: 700, 
-            cursor: "pointer", 
-            fontSize: 18, 
-            display:"flex", 
-            alignItems:"center", 
-            justifyContent:"center",
-            flexShrink: 0 // ★ 핵심: 버튼 크기가 찌그러지지 않게 방어
-          }}
+          style={{ background: "transparent", border: "1px solid #5A6272", color: T.text, padding: "8px 14px", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink: 0 }}
         >
           🚀
         </button>
       </div>
 
-{/* ★ 3. 카드 레이아웃: 모바일이면 2칸, 넓은 화면이면 4칸으로 자동 조절 */}
-<div style={{ display:"grid", gridTemplateColumns: isWide ? "repeat(4,1fr)" : "repeat(2,1fr)", gap:10, marginBottom:16 }}>
+      <div style={{ display:"grid", gridTemplateColumns: isWide ? "repeat(4,1fr)" : "repeat(2,1fr)", gap:10, marginBottom:16 }}>
         {stats.map((s, i) => (
-          // ★ 중요: isMobile={isMobile} 추가 ★
           <StatCard key={i} label={s.label} value={s.value} color={s.color} sub={s.sub} isMobile={isMobile} />
         ))}
       </div>
 
-      {/* Chart + Top10 */}
       <div style={{ display:"grid", gridTemplateColumns:isDesktop?"1fr 1fr":"1fr", gap:16 }}>
-        <div style={{ background:T.card, borderRadius:16, padding:"16px 6px 8px 0", border:`1px solid ${T.border}` }}>
+        <div style={{ background:T.card, borderRadius:16, padding:"16px 6px 8px 0", border:`1px solid ${T.border}`, minWidth: 0, overflow: "hidden" }}>
           <p style={{ color:T.text, fontSize:14, fontWeight:700, margin:"0 0 8px 16px" }}>자산 및 수익 추이</p>
           <div style={{ display:"flex", gap:14, margin:"0 0 10px 16px", flexWrap:"wrap" }}>
             {[{l:"평가총액",c:T.red},{l:"투자원금",c:T.blue},{l:"수익금액",c:T.orange}].map(x => (
@@ -452,14 +460,29 @@ function OverviewTab({ data, bp, onAskAi }) {
           </div>
           <ResponsiveContainer width="100%" height={chartH}>
             <ComposedChart data={MONTHLY}>
-              <CartesianGrid strokeDasharray="3 3" stroke={T.border}/>
-              <XAxis dataKey="date" tick={{fill:T.textDim,fontSize:10}} tickFormatter={v=>v.slice(2)} axisLine={false} tickLine={false} interval={Math.floor(MONTHLY.length/6)}/>
-              <YAxis tick={{fill:T.textDim,fontSize:10}} axisLine={false} tickLine={false} tickFormatter={v=>fK(v)} width={46} domain={[dataMin => Math.min(dataMin, -50000000), 'auto']} allowDataOverflow={true} />
+              {/* ★ 변경점 1: 배경 점선(Grid) 색상을 훨씬 눈에 띄게 (불투명도 0.25) */}
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.25)"/>
+              
+              <XAxis dataKey="date" tick={{fill:T.textSec,fontSize:10,fontWeight:600}} tickFormatter={v=>v.slice(2)} axisLine={false} tickLine={false} interval={Math.floor(MONTHLY.length/6)}/>
+              
+              {/* ★ 변경점 2: Y축에 계산된 1억 단위 yTicks 배열을 강제로 주입! */}
+              <YAxis 
+                tick={{fill:T.textSec,fontSize:10,fontWeight:600}} 
+                axisLine={false} 
+                tickLine={false} 
+                tickFormatter={v=>fK(v)} 
+                width={46} 
+                domain={[yMin, yMax]} 
+                ticks={yTicks} 
+              />
               <Tooltip content={<CT fmt="krw"/>}/>
-              <ReferenceLine y={0} stroke={T.textDim} strokeDasharray="3 3"/>
-              <Line type="monotone" dataKey="principal" name="투자원금" stroke={T.blue} strokeWidth={2} dot={false}/>
-              <Line type="monotone" dataKey="evalTotal" name="평가총액" stroke={T.red} strokeWidth={2} dot={false}/>
-              <Line type="monotone" dataKey="profit" name="수익금액" stroke={T.orange} strokeWidth={2} dot={false}/>
+              
+              {/* ★ 변경점 3: 0 (기준선) 라인을 두껍고 선명하게 표시 */}
+              <ReferenceLine y={0} stroke="rgba(255,255,255,0.5)" strokeWidth={1.5} strokeDasharray="3 3"/>
+              
+              <Line type="monotone" dataKey="principal" name="투자원금" stroke={T.blue} strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="evalTotal" name="평가총액" stroke={T.red} strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="profit" name="수익금액" stroke={T.orange} strokeWidth={2} dot={false} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -472,7 +495,11 @@ function OverviewTab({ data, bp, onAskAi }) {
               return (
                 <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom: isLastRow ? "none" : `1px solid ${T.border}` }}>
                   <div style={{ width:28, height:28, borderRadius:7, background:`${SC[i%SC.length]}15`, display:"flex", alignItems:"center", justifyContent:"center", color:SC[i%SC.length], fontSize:11, fontWeight:800 }}>{i+1}</div>
-                  <div style={{ flex:1, minWidth:0 }}>
+                  <div 
+                    style={{ flex:1, minWidth:0, cursor:"pointer" }} 
+                    onClick={() => setShowAllHoldings(true)}
+                    title="전체 종목 보기"
+                  >
                     <p style={{ color:T.text, fontSize:12, fontWeight:600, margin:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{h.name}</p>
                     <p style={{ color:T.textDim, fontSize:10, margin:"2px 0 0" }}>{h.country} · {h.type} · <span style={{ color:h.returnPct>=0?T.accent:T.red, fontWeight:600 }}>{fP(h.returnPct)}</span></p>
                   </div>
@@ -486,6 +513,55 @@ function OverviewTab({ data, bp, onAskAi }) {
           </div>
         </div>
       </div>
+
+      {/* 숨겨진 전체 종목 페이지 */}
+      {showAllHoldings && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: T.bg, zIndex: 99999,
+          display: "flex", flexDirection: "column"
+        }}>
+          <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${T.border}`, background: T.surface }}>
+            <h2 style={{ color: T.text, fontSize: 18, margin: 0, fontWeight: 800 }}>💎 전체 보유 종목 ({HOLDINGS.length}개)</h2>
+            <button 
+              onClick={() => setShowAllHoldings(false)} 
+              style={{ background: "transparent", border: "none", color: T.text, fontSize: 24, cursor: "pointer", padding: "0 8px" }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
+            <div style={{ minWidth: 600 }}> 
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                <thead>
+                  <tr>
+                    <th onClick={() => handleSort('originalRank')} style={{ ...thStyle }}>순위{renderSortIcon('originalRank')}</th>
+                    <th onClick={() => handleSort('name')} style={{ ...thStyle }}>종목명{renderSortIcon('name')}</th>
+                    <th onClick={() => handleSort('type')} style={{ ...thStyle }}>국가/분류{renderSortIcon('type')}</th>
+                    <th onClick={() => handleSort('weight')} style={{ ...thStyle, textAlign: "right" }}>비중{renderSortIcon('weight')}</th>
+                    <th onClick={() => handleSort('evalAmount')} style={{ ...thStyle, textAlign: "right" }}>평가금액{renderSortIcon('evalAmount')}</th>
+                    <th onClick={() => handleSort('returnPct')} style={{ ...thStyle, textAlign: "right" }}>수익률{renderSortIcon('returnPct')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedHoldings.map((h, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${T.border}40` }}>
+                      <td style={{ padding: "12px 8px", color: T.textSec, fontSize: 13, fontWeight: 700 }}>{h.originalRank}</td>
+                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 14, fontWeight: 600 }}>{h.name}</td>
+                      <td style={{ padding: "12px 8px", color: T.textDim, fontSize: 12 }}>{h.country} · {h.type}</td>
+                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{h.weight.toFixed(1)}%</td>
+                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(h.evalAmount)}원</td>
+                      <td style={{ padding: "12px 8px", color: h.returnPct >= 0 ? T.accent : T.red, fontSize: 13, fontWeight: 700, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>
+                        {fP(h.returnPct)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
