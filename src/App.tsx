@@ -1196,7 +1196,7 @@ Your tone is professional, objective, and analytical.
 - Provide a "Quantitative Opinion" at the end of each answer specifically regarding how the query affects Simpson's Top 10 holdings.
     `;
 
-    const MODEL_NAME = "gemini-3-flash"; 
+    const MODEL_NAME = "gemini-2.5-flash"; 
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
     try {
