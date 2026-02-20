@@ -474,6 +474,7 @@ function OverviewTab({ data, bp, onAskAi }) {
                 width={46} 
                 domain={[yMin, yMax]} 
                 ticks={yTicks} 
+                interval={0}
               />
               <Tooltip content={<CT fmt="krw"/>}/>
               
