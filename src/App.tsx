@@ -1055,7 +1055,7 @@ function HoldingsTab({ data, bp }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  Q&A (AI 비서) 탭 컴포넌트
 // ─────────────────────────────────────────────────────────────────────────────
-function QaTab({ data, bp, input, setInput }) {
+function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
   const { SUMMARY, MONTHLY, HOLDINGS } = data;
   const isDesktop = bp === "desktop";
   const pad = isDesktop ? "0 28px 48px" : "0 0 0"; 
@@ -1160,7 +1160,13 @@ Your tone is professional, objective, and analytical.
   // ─────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: pad, display: "flex", flexDirection: "column", height: isDesktop ? "calc(100vh - 120px)" : "calc(100vh - 125px)", background: T.bg }}>
+    // ★ 모바일: position:fixed로 헤더 바로 아래 ~ 탭바 바로 위를 정확히 채움
+    // ★ 데스크톱: 기존 방식 유지
+    <div style={
+      isDesktop
+        ? { padding: pad, display: "flex", flexDirection: "column", height: "calc(100vh - 120px)", background: T.bg }
+        : { position: "fixed", top: headerH, left: 0, right: 0, bottom: tabBarH, display: "flex", flexDirection: "column", background: T.bg, zIndex: 5 }
+    }>
       <div style={{ background: T.card, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", borderTop: isDesktop ? `1px solid ${T.border}` : "none", borderRadius: isDesktop ? 16 : 0 }}>
         
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 24 }}>
@@ -1197,7 +1203,7 @@ Your tone is professional, objective, and analytical.
           {loading && <div style={{ color: T.textDim, fontSize: baseFontSize - 2, textAlign: "left" }}>데이터 분석 중... ⏳</div>}
         </div>
 
-        <div style={{ padding: "12px 16px", background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", gap: 10, paddingBottom: isDesktop ? 12 : "calc(20px + env(safe-area-inset-bottom, 10px))" }}>
+        <div style={{ padding: "12px 16px", background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", gap: 10, paddingBottom: isDesktop ? 12 : "calc(12px + env(safe-area-inset-bottom))" }}>
           <input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -1284,7 +1290,20 @@ export default function App() {
     });
     obs.observe(headerRef.current);
     return () => obs.disconnect();
-  }, [bp]); // bp가 바뀔 때마다 헤더 높이를 다시 측정
+  }, [bp]);
+
+  // ★ 하단 탭바 높이도 정확히 측정 → QaTab에 전달해서 여백 0으로 맞춤
+  const tabBarRef = useRef(null);
+  const [tabBarH, setTabBarH] = useState(50);
+
+  useEffect(() => {
+    if (!tabBarRef.current) return;
+    const obs = new ResizeObserver(entries => {
+      setTabBarH(entries[0].contentRect.height);
+    });
+    obs.observe(tabBarRef.current);
+    return () => obs.disconnect();
+  }, [bp]);
 
   // ★ 1. Q&A 검색어 상태 
   const [qaInput, setQaInput] = useState(""); 
@@ -1323,7 +1342,7 @@ export default function App() {
       case "monthly":  return <MonthlyTab   {...props}/>;
       case "holdings": return <HoldingsTab  {...props}/>;
       case "assets":   return <AssetsTab    {...props}/>;
-      case "qa":       return <QaTab        {...props} input={qaInput} setInput={setQaInput} />;
+      case "qa":       return <QaTab        {...props} input={qaInput} setInput={setQaInput} headerH={headerH} tabBarH={tabBarH} />;
       default:         return <OverviewTab  {...props}/>;
     }
   };
@@ -1396,7 +1415,7 @@ export default function App() {
           <div style={{ paddingTop: headerH, paddingBottom: 80 }}>{renderTab()}</div>
 
           {/* ★ FIX 3: left/right 대신 left:50% + translateX(-50%) + maxWidth로 컨테이너와 정렬 맞춤 */}
-          <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:768, background:`${T.bg}f8`, backdropFilter:"blur(20px)", borderTop:`1px solid ${T.border}`, display:"flex", padding:"6px 0 env(safe-area-inset-bottom,6px)", zIndex:20 }}>
+          <div ref={tabBarRef} style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:768, background:`${T.bg}f8`, backdropFilter:"blur(20px)", borderTop:`1px solid ${T.border}`, display:"flex", padding:"6px 0 env(safe-area-inset-bottom,6px)", zIndex:20 }}>
             {tabs.filter(t => !["overview","assets", "qa"].includes(t.id)).map(t => (
               <button key={t.id} onClick={()=>setTab(t.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:2, border:"none", background:"none" }}>
                 <span style={{ fontSize:18, opacity:tab===t.id?1:0.3 }}>{t.icon}</span>
