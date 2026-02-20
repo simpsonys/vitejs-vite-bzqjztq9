@@ -261,21 +261,23 @@ function CT({ active, payload, label, fmt }) {
   );
 }
 
-// 기존 StatCard 함수를 찾아서 이걸로 통째로 교체하세요.
 function StatCard({ label, value, color, sub, large, isMobile }) {
-  // 모바일일 때 패딩을 확 줄여서 높이를 낮춤 (14px -> 10px)
-  const pad = isMobile ? "10px 12px" : (large ? "20px 22px" : "14px 16px");
+  // ★ 카드의 위아래 패딩(여백)을 대폭 줄여서 납작하게 만듭니다.
+  const pad = isMobile ? "8px 10px" : (large ? "16px 18px" : "10px 12px");
   
-  // 모바일 글씨 크기 상향 조정
-  const labelSize = isMobile ? 12 : (large ? 11 : 11); 
-  const valueSize = isMobile ? 17 : (large ? 22 : 18);
-  const subSize   = isMobile ? 11 : (large ? 11 : 10);
+  const labelSize = isMobile ? 11 : (large ? 11 : 11); 
+  const valueSize = isMobile ? 16 : (large ? 20 : 17);
+  const subSize   = isMobile ? 10 : (large ? 11 : 10);
+
+  // ★ 글씨 사이의 띄어쓰기(Margin)도 최소한으로 줄입니다.
+  const labelMarginBottom = isMobile ? 2 : 3;
+  const subMarginTop = isMobile ? 2 : 3;
 
   return (
     <div style={{ background:T.card, borderRadius:12, padding:pad, border:`1px solid ${T.border}`, flex:1, minWidth:0, display:"flex", flexDirection:"column", justifyContent:"center" }}>
-      <p style={{ color:T.textDim, fontSize:labelSize, margin:`0 0 ${isMobile?3:5}px`, fontWeight:600, letterSpacing:"0.4px" }}>{label}</p>
+      <p style={{ color:T.textDim, fontSize:labelSize, margin:`0 0 ${labelMarginBottom}px`, fontWeight:600, letterSpacing:"0.4px" }}>{label}</p>
       <p style={{ color:color||T.text, fontSize:valueSize, fontWeight:800, margin:0, letterSpacing:"-0.5px", fontFamily:"'IBM Plex Mono',monospace" }}>{value}</p>
-      {sub && <p style={{ color:T.textSec, fontSize:subSize, margin:"3px 0 0" }}>{sub}</p>}
+      {sub && <p style={{ color:T.textSec, fontSize:subSize, margin:`${subMarginTop}px 0 0` }}>{sub}</p>}
     </div>
   );
 }
@@ -323,10 +325,15 @@ function OverviewTab({ data, bp, onAskAi }) {
   };
 
   const top10 = HOLDINGS.slice(0, 10);
-  const stats = [
+  const allStats = [
+    { label: "현재 수익률", value: fP(SUMMARY.returnPct),       color: T.accent },
+    { label: "수익률 고점", value: fP(SUMMARY.highReturnPct),    color: T.accent, sub: "고점대비 "+fP(SUMMARY.fromHighPct) },
     { label: "누적 배당",   value: fK(SUMMARY.cumDividend)+"원", color: T.orange },
     { label: "시세차익",    value: fK(SUMMARY.cumCapGain)+"원",  color: T.blue }
   ];
+
+  // ★ 2. 모바일 화면일 때는 뒤의 2개(누적배당, 시세차익)만 뽑아서 씁니다. PC/와이드는 4개 전부 씁니다.
+  const stats = isMobile ? allStats.slice(2, 4) : allStats;
 
   return (
     <div style={{ padding:pad }}>
@@ -406,8 +413,8 @@ function OverviewTab({ data, bp, onAskAi }) {
         </button>
       </div>
 
-{/* 4개 요약 카드 (isMobile 전달) */}
-<div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(4,1fr)":"repeat(2,1fr)", gap:10, marginBottom:16 }}>
+{/* ★ 3. 카드 레이아웃: 모바일이면 2칸, 넓은 화면이면 4칸으로 자동 조절 */}
+<div style={{ display:"grid", gridTemplateColumns: isWide ? "repeat(4,1fr)" : "repeat(2,1fr)", gap:10, marginBottom:16 }}>
         {stats.map((s, i) => (
           // ★ 중요: isMobile={isMobile} 추가 ★
           <StatCard key={i} label={s.label} value={s.value} color={s.color} sub={s.sub} isMobile={isMobile} />
