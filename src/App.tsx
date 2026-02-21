@@ -516,17 +516,18 @@ function OverviewTab({ data, bp, onAskAi }) {
             </button>
           </div>
           <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-            <div style={{ minWidth: 680 }}> {/* 매입금액 열이 추가되어 너비 약간 증가 */}
+            <div style={{ minWidth: 740 }}> {/* ★ 수량 열이 추가되어 전체 표 넓이(minWidth) 확보 */}
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
                   <tr>
                     <th onClick={() => handleSort('originalRank')} style={{ ...thStyle }}>순위{renderSortIcon('originalRank')}</th>
-                    {/* ★ 종목명 헤더 가운데 정렬 추가 */}
                     <th onClick={() => handleSort('name')} style={{ ...thStyle, textAlign: "center" }}>종목명{renderSortIcon('name')}</th>
                     <th onClick={() => handleSort('type')} style={{ ...thStyle }}>국가/분류{renderSortIcon('type')}</th>
+                    {/* ★ 수량 헤더 추가 (클릭 시 정렬 연동) */}
+                    <th onClick={() => handleSort('qty')} style={{ ...thStyle, textAlign: "right" }}>수량{renderSortIcon('qty')}</th>
                     <th onClick={() => handleSort('weight')} style={{ ...thStyle, textAlign: "right" }}>비중{renderSortIcon('weight')}</th>
-                    <th onClick={() => handleSort('evalAmount')} style={{ ...thStyle, textAlign: "right" }}>평가금액{renderSortIcon('evalAmount')}</th>
                     <th onClick={() => handleSort('buyAmount')} style={{ ...thStyle, textAlign: "right" }}>매입금액{renderSortIcon('buyAmount')}</th>
+                    <th onClick={() => handleSort('evalAmount')} style={{ ...thStyle, textAlign: "right" }}>평가금액{renderSortIcon('evalAmount')}</th>
                     <th onClick={() => handleSort('returnPct')} style={{ ...thStyle, textAlign: "right" }}>수익률{renderSortIcon('returnPct')}</th>
                   </tr>
                 </thead>
@@ -534,13 +535,13 @@ function OverviewTab({ data, bp, onAskAi }) {
                   {sortedHoldings.map((h, i) => (
                     <tr key={i} style={{ borderBottom: `1px solid ${T.border}40` }}>
                       <td style={{ padding: "12px 8px", color: T.textSec, fontSize: 13, fontWeight: 700 }}>{h.originalRank}</td>
-                      {/* ★ 종목명 셀 가운데 정렬 추가 */}
                       <td style={{ padding: "12px 8px", color: T.text, fontSize: 14, fontWeight: 600, textAlign: "center" }}>{h.name}</td>
                       <td style={{ padding: "12px 8px", color: T.textDim, fontSize: 12 }}>{h.country} · {h.type}</td>
+                      {/* ★ 수량 데이터 추가 (숫자에 쉼표 포맷 적용) */}
+                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{h.qty.toLocaleString()}</td>
                       <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{h.weight.toFixed(1)}%</td>
-                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(h.evalAmount)}원</td>
-                      {/* ★ 매입금액 데이터 셀 추가 */}
                       <td style={{ padding: "12px 8px", color: T.textDim, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(h.buyAmount)}원</td>
+                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(h.evalAmount)}원</td>
                       <td style={{ padding: "12px 8px", color: h.returnPct >= 0 ? T.accent : T.red, fontSize: 13, fontWeight: 700, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>
                         {fP(h.returnPct)}
                       </td>
