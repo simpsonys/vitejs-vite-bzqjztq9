@@ -1150,12 +1150,21 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
   
   const [loading, setLoading] = useState(false);
   const hasAutoSent = useRef(false);
+  
+  // ★ 추가된 부분 1: 스크롤 위치를 기억할 '닻(Ref)' 만들기
+  const messagesEndRef = useRef(null); 
+
+  // ★ 추가된 부분 2: 글자가 타이핑될 때마다(messages가 변할 때마다) 화면을 맨 아래로 끌어내리기
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "auto" }); 
+    }
+  }, [messages]);
 
   const handleSend = async (overrideInput) => {
     const textToSend = typeof overrideInput === "string" ? overrideInput : input;
     if (!textToSend || !textToSend.trim() || loading) return;
 
-    // ★ 핵심 복구 영역: 사용자 질문 뒤에, AI가 대답할 'model' 빈칸을 반드시 추가해야 합니다!
     setMessages(prev => [
       ...prev, 
       { role: "user", text: textToSend },
@@ -1273,7 +1282,6 @@ ${JSON.stringify(holdingsData)}
                  currentResponse += textPiece; 
                  setMessages(prev => {
                     const newMsg = [...prev];
-                    // ★ 화면에 그리기 직전에 보기 싫은 ** 기호만 쏙 지워줍니다!
                     newMsg[newMsg.length - 1].text = currentResponse.replace(/\*\*/g, ""); 
                     return newMsg;
                  });
@@ -1308,6 +1316,7 @@ ${JSON.stringify(holdingsData)}
     }>
       <div style={{ background: T.card, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", borderTop: isDesktop ? `1px solid ${T.border}` : "none", borderRadius: isDesktop ? 16 : 0 }}>
         
+        {/* 스크롤이 생기는 메인 채팅 영역 */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 24 }}>
           {messages.map((m, i) => (
             <div key={i} style={{ alignSelf: "flex-start", width: "100%" }}>
@@ -1343,6 +1352,9 @@ ${JSON.stringify(holdingsData)}
             </div>
           ))}
           {loading && <div style={{ color: T.textDim, fontSize: baseFontSize - 2, textAlign: "left" }}>데이터 분석 중... ⏳</div>}
+          
+          {/* ★ 추가된 부분 3: 맨 아래에 위치한 '투명한 닻' */}
+          <div ref={messagesEndRef} />
         </div>
 
         <div style={{ padding: "12px 16px", background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", gap: 10, paddingBottom: isDesktop ? 12 : "calc(12px + env(safe-area-inset-bottom))" }}>
@@ -1365,7 +1377,6 @@ ${JSON.stringify(holdingsData)}
     </div>
   );
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 //  사이드바 (데스크톱 전용)
 // ─────────────────────────────────────────────────────────────────────────────
