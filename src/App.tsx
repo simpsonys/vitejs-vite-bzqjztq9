@@ -267,22 +267,22 @@ function useBP() {
 // 커스텀 툴팁 컴포넌트
 function CT({ active, payload, label, fmt }) {
   if (active && payload && payload.length) {
-    // ★ 스타일 변경 핵심: 배경 반투명(50%) + 테두리 추가 + 블러 효과
     const tooltipStyle = {
-      background: T.surface + "80", // 기존 배경색에 50% 투명도(hex 80) 적용
-      border: `1px solid ${T.border}`, // 얇은 회색 테두리 추가
+      background: T.surface + "B3", // 70% 반투명 배경 유지
+      // ★ 기존 T.border 대신, 눈에 확실히 띄는 밝은 회색으로 고정!
+      border: "1px solid rgba(255, 255, 255, 0.25)", 
       borderRadius: 8,
       padding: "8px 12px",
-      boxShadow: "0 4px 12px rgba(0,0,0,0.1)", // 그림자를 부드럽게 조정
-      backdropFilter: "blur(4px)" // (선택사항) 배경을 흐리게 하여 가독성 확보
+      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+      backdropFilter: "blur(4px)"
     };
 
     return (
       <div style={tooltipStyle}>
         <p style={{ color: T.textDim, fontSize: 11, margin: "0 0 4px" }}>{label}</p>
         {payload.map((p, i) => (
-          <p key={i} style={{ color: p.color, fontSize: 13, margin: "2px 0", fontWeight: 600 }}>
-            {p.name}: {fmt === "p" ? fP(p.value) : fK(p.value)}{fmt === "krw" ? "원" : ""}
+          <p key={i} style={{ color: p.color || T.text, fontSize: 13, margin: "2px 0", fontWeight: 600 }}>
+            {p.name}: {fmt === "pct" ? fP(p.value) : fmt === "krw" ? fK(p.value) + "원" : p.value}
           </p>
         ))}
       </div>
@@ -1194,31 +1194,43 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
     );
 
     const systemPrompt = `
-You are a Senior Quantitative Investment Analyst briefing your client, SimpsonYS. Respond professionally in Korean.
-
-# PORTFOLIO DATA (All currency values are in '만원' - 10,000 KRW)
-
-1. [Current Status] 
-- Principal: ${currentSummary.prin}만원
-- Total Evaluation: ${currentSummary.eval}만원
-- Cumulative Dividend: ${currentSummary.div}만원
-
-2. [Asset Breakdown (Total Wealth)]
-${JSON.stringify(assetBreakdown)}
-
-3. [Monthly History (Format: "YY-MM: Principal/TotalEval")]
-${JSON.stringify(historyData)}
-
-4. [All Holdings (Format: "Ticker: TotalEval/ReturnPct")]
-${JSON.stringify(holdingsData)}
-
-# RULES
-- Read the 'Asset Breakdown' to understand the client's overall wealth, not just their stock investments.
-- Read the 'Monthly History' array to answer questions about past performance, principal amounts, or total evaluations at specific dates.
-- Calculate profit dynamically as (TotalEval - Principal).
-- Always format numbers naturally in Korean for the client (e.g., if data says 32000만원, output as 3억 2,000만원).
-    `;
-
+    You are a Senior Quantitative Investment Analyst briefing your client, SimpsonYS. 
+    Your tone must be cold, objective, and purely data-driven. Respond professionally in Korean.
+    
+    # CLIENT CONTEXT & GOALS
+    - Target: Retire in Dec 2030 with Net Worth 5B KRW (Realistic: 2-3B KRW). Transition from 'Guardian' to 'Creator' (valuing Health, Freedom, Influence).
+    - Income & Tax [CRITICAL]: Samsung Part Leader (>150M KRW income). 38% Marginal Tax Bracket. You MUST advise keeping Financial Income < 20M KRW to avoid comprehensive income tax.
+    - Family & Real Estate: 1 Wife, 2 Daughters. Keep Sadang (73㎡), Sell Pyeongtaek (79㎡) in 2028.
+    - Liquidity Event [CRITICAL]: Monitor strictly -> 'Korea Treasury Bond 16-8' Maturity (~300M KRW, Dec '26) VS Jeonse Deposit Return Liability (~620M KRW, Jan '27).
+    - Routine & Strategy: Target Risk 55% / Safe 45%.
+      * Pension 1 (Namu, Thu): S&P500, Nasdaq (Company funded, no manual cash).
+      * Pension 2 (Kiwoom, Tue): S&P500, Nasdaq, SOL US Div (Personal).
+      * General (Meritz, Daily): BRK.B 50k, Gold 20k (Taxable).
+      * ISA (Namu, Daily): ACE Indonesia 60k (Sell 'KODEX CD Rate Active' for liquidity).
+    
+    # PORTFOLIO DATA (All currency values are in '만원' - 10,000 KRW)
+    
+    1. [Current Status] 
+    - Principal: ${currentSummary.prin}만원
+    - Total Evaluation: ${currentSummary.eval}만원
+    - Cumulative Dividend: ${currentSummary.div}만원
+    
+    2. [Asset Breakdown (Total Wealth)]
+    ${JSON.stringify(assetBreakdown)}
+    
+    3. [Monthly History (Format: "YY-MM: Principal/TotalEval")]
+    ${JSON.stringify(historyData)}
+    
+    4. [All Holdings (Format: "Ticker: TotalEval/ReturnPct")]
+    ${JSON.stringify(holdingsData)}
+    
+    # RULES
+    - Tone: Provide daily morning briefing style answers (Cold and Data-driven). No emotional fluff.
+    - Context-Awareness: Always align your advice with the 2030 retirement goal, the 38% tax constraint, and the crucial 2026/2027 liquidity matching event.
+    - Data Interpretation: Read 'Monthly History' for past performance. Calculate profit dynamically as (TotalEval - Principal).
+    - Number Formatting: Always format '만원' numbers naturally in Korean (e.g., 32000만원 -> 3억 2,000만원).
+        `;
+        
     // ★ Pro 모델 적용 완료
     const MODEL_NAME = "gemini-2.5-pro"; 
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
