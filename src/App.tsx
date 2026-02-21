@@ -264,18 +264,31 @@ function useBP() {
   return "mobile";
 }
 
+// 커스텀 툴팁 컴포넌트
 function CT({ active, payload, label, fmt }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{ background:"#1C2230", borderRadius:10, padding:"10px 14px", border:`1px solid ${T.border}`, boxShadow:"0 8px 24px rgba(0,0,0,0.6)", maxWidth:220 }}>
-      <p style={{ color:T.textSec, fontSize:11, margin:"0 0 5px" }}>{label}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ color:p.color||T.text, fontSize:12, fontWeight:600, margin:"2px 0" }}>
-          {p.name}: {fmt==="pct" ? fP(p.value) : fmt==="krw" ? fK(p.value)+"원" : p.value}
-        </p>
-      ))}
-    </div>
-  );
+  if (active && payload && payload.length) {
+    // ★ 스타일 변경 핵심: 배경 반투명(50%) + 테두리 추가 + 블러 효과
+    const tooltipStyle = {
+      background: T.surface + "80", // 기존 배경색에 50% 투명도(hex 80) 적용
+      border: `1px solid ${T.border}`, // 얇은 회색 테두리 추가
+      borderRadius: 8,
+      padding: "8px 12px",
+      boxShadow: "0 4px 12px rgba(0,0,0,0.1)", // 그림자를 부드럽게 조정
+      backdropFilter: "blur(4px)" // (선택사항) 배경을 흐리게 하여 가독성 확보
+    };
+
+    return (
+      <div style={tooltipStyle}>
+        <p style={{ color: T.textDim, fontSize: 11, margin: "0 0 4px" }}>{label}</p>
+        {payload.map((p, i) => (
+          <p key={i} style={{ color: p.color, fontSize: 13, margin: "2px 0", fontWeight: 600 }}>
+            {p.name}: {fmt === "p" ? fP(p.value) : fK(p.value)}{fmt === "krw" ? "원" : ""}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
 }
 
 function StatCard({ label, value, color, sub, large, isMobile }) {
@@ -1132,7 +1145,7 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
   const titleFontSize = isDesktop ? "18px" : "20px";
 
   const [messages, setMessages] = useState([
-    { role: "model", text: "안녕하세요! SimpsonYS님의 자산 현황이나 특정 종목에 대해 무엇이든 물어보세요. 🤖" }
+    { role: "model", text: "안녕하세요! SimpsonYS님의 전체 자산 현황이나 특정 종목에 대해 무엇이든 물어보세요. 🤖" }
   ]);
   
   // ❌ 주의: 여기에 있던 const [input, setInput] = useState(""); 코드는 완전히 삭제되었습니다!
@@ -1158,6 +1171,20 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
       div: Math.round(SUMMARY.cumDividend / 10000)
     };
 
+    // ★ 최신 달의 전체 자산 현황 데이터 추출 (만원 단위)
+    const latest = MONTHLY[MONTHLY.length - 1] || {};
+    const assetBreakdown = {
+      총자산: Math.round((latest.assetTotal || 0) / 10000),
+      투자자산: Math.round((latest.invest || 0) / 10000),
+      부동산_대출: Math.round((latest.realEstate || 0) / 10000),
+      전세보증금: Math.round((latest.jeonse || 0) / 10000),
+      T채권: Math.round((latest.tBond || 0) / 10000),
+      예적금: Math.round((latest.deposit || 0) / 10000),
+      계좌_카드: Math.round((latest.accCard || 0) / 10000),
+      연금: Math.round((latest.pension || 0) / 10000),
+      자동차: Math.round((latest.car || 0) / 10000)
+    };
+
     const historyData = MONTHLY.map(m => 
       `${m.date}: ${Math.round(m.principal / 10000)}/${Math.round(m.evalTotal / 10000)}`
     );
@@ -1176,19 +1203,24 @@ You are a Senior Quantitative Investment Analyst briefing your client, SimpsonYS
 - Total Evaluation: ${currentSummary.eval}만원
 - Cumulative Dividend: ${currentSummary.div}만원
 
-2. [Monthly History (Format: "YY-MM: Principal/TotalEval")]
+2. [Asset Breakdown (Total Wealth)]
+${JSON.stringify(assetBreakdown)}
+
+3. [Monthly History (Format: "YY-MM: Principal/TotalEval")]
 ${JSON.stringify(historyData)}
 
-3. [All Holdings (Format: "Ticker: TotalEval/ReturnPct")]
+4. [All Holdings (Format: "Ticker: TotalEval/ReturnPct")]
 ${JSON.stringify(holdingsData)}
 
 # RULES
+- Read the 'Asset Breakdown' to understand the client's overall wealth, not just their stock investments.
 - Read the 'Monthly History' array to answer questions about past performance, principal amounts, or total evaluations at specific dates.
 - Calculate profit dynamically as (TotalEval - Principal).
 - Always format numbers naturally in Korean for the client (e.g., if data says 32000만원, output as 3억 2,000만원).
     `;
 
-    const MODEL_NAME = "gemini-2.5-flash"; 
+    // ★ Pro 모델 적용 완료
+    const MODEL_NAME = "gemini-2.5-pro"; 
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
     try {
@@ -1295,7 +1327,6 @@ ${JSON.stringify(holdingsData)}
     </div>
   );
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 //  사이드바 (데스크톱 전용)
 // ─────────────────────────────────────────────────────────────────────────────
