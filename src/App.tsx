@@ -913,7 +913,7 @@ function AssetsTab({ data, bp }) {
                 const d = payload[0].payload;
                 const pct = ((d.value / latest.assetTotal) * 100).toFixed(1);
                 return (
-                  <div style={{ background:"#1C2230", borderRadius:10, padding:"10px 14px", border:`1px solid ${T.border}` }}>
+                  <div style={{ background:"rgba(28, 34, 48, 0.5)", borderRadius:10, padding:"10px 14px", border:"1px solid rgba(200, 200, 200, 0.3)", backdropFilter:"blur(4px)" }}>
                     <p style={{ color:T.text, fontSize:12, fontWeight:600, margin:"0 0 3px" }}>{d.name}</p>
                     <p style={{ color:T.textSec, fontSize:11, margin:0 }}>{pct}% · ₩{fK(d.value)}원</p>
                   </div>
@@ -1038,7 +1038,7 @@ function HoldingsTab({ data, bp }) {
                 if (!active||!payload?.length) return null;
                 const d = payload[0].payload;
                 return (
-                  <div style={{ background:"#1C2230", borderRadius:10, padding:"10px 14px", border:`1px solid ${T.border}` }}>
+                  <div style={{ background:"rgba(28, 34, 48, 0.5)", borderRadius:10, padding:"10px 14px", border:"1px solid rgba(200, 200, 200, 0.3)", backdropFilter:"blur(4px)" }}>
                     <p style={{ color:T.text, fontSize:12, fontWeight:600, margin:"0 0 3px" }}>{d.name}</p>
                     <p style={{ color:T.textSec, fontSize:11, margin:0 }}>{d.weight.toFixed(1)}% · ₩{fK(d.evalAmount)}원</p>
                   </div>
