@@ -14,7 +14,8 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
-    "recharts": "*"
+    "recharts": "*",
+    "remark-gfm": "*"   // ★ 이 줄을 추가해 주세요! (위에 recharts 끝에 쉼표(,) 찍는 것 잊지 마세요)
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

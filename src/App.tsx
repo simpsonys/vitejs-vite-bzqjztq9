@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import * as recharts from "recharts";
 import Papa from "papaparse";
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm'; // ★ 이 줄을 추가해 주세요!
 
 const {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -1300,14 +1301,20 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
                 {m.role === "user" ? (
                   `💬 SimpsonYS: ${m.text}`
                 ) : (
+                  // ✅ 기존 ReactMarkdown 태그 부분을 이렇게 덮어써 주세요!
                   <ReactMarkdown
+                    remarkPlugins={[remarkGfm]} // ★ 핵심: 표 변환 플러그인 장착
                     components={{
-                      // ★ 마크다운 요소별 글씨 크기 대폭 확대
                       p: ({node, ...props}) => <p style={{ marginBottom: "16px", lineHeight: "1.7", fontSize: `${baseFontSize}px` }} {...props} />,
                       h3: ({node, ...props}) => <h3 style={{ marginTop: "30px", marginBottom: "14px", fontSize: titleFontSize, fontWeight: "bold", color: T.text }} {...props} />,
                       ul: ({node, ...props}) => <ul style={{ paddingLeft: "24px", marginBottom: "16px", listStyleType: "disc" }} {...props} />,
                       li: ({node, ...props}) => <li style={{ marginBottom: "10px", lineHeight: "1.7", fontSize: `${baseFontSize}px` }} {...props} />,
-                      strong: ({node, ...props}) => <strong style={{ fontWeight: "800", color: T.text }} {...props} />
+                      strong: ({node, ...props}) => <strong style={{ fontWeight: "800", color: T.accent }} {...props} />, // 강조색도 예쁘게 변경!
+                      
+                      // ★ 새롭게 추가된 표(Table) 디자인 스타일
+                      table: ({node, ...props}) => <div style={{ overflowX: "auto", margin: "16px 0", borderRadius: 8, border: `1px solid ${T.border}` }}><table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: `${baseFontSize - 1}px` }} {...props} /></div>,
+                      th: ({node, ...props}) => <th style={{ borderBottom: `2px solid ${T.border}`, padding: "12px 14px", color: T.text, fontWeight: 800, background: T.surface }} {...props} />,
+                      td: ({node, ...props}) => <td style={{ borderBottom: `1px solid ${T.border}`, padding: "12px 14px", color: T.textDim }} {...props} />
                     }}
                   >
                     {m.text}
