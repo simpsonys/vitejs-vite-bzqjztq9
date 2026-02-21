@@ -269,7 +269,7 @@ function useBP() {
 function CT({ active, payload, label, fmt }) {
   if (active && payload && payload.length) {
     const tooltipStyle = {
-      background: T.surface + "B3", // 70% 반투명 배경 유지
+      background: T.surface + "33",
       // ★ 기존 T.border 대신, 눈에 확실히 띄는 밝은 회색으로 고정!
       border: "1px solid rgba(255, 255, 255, 0.25)", 
       borderRadius: 8,
