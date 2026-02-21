@@ -1141,7 +1141,6 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
   const isDesktop = bp === "desktop";
   const pad = isDesktop ? "0 28px 48px" : "0 0 0"; 
 
-  // ★ 모바일일 때 글씨 크기를 전반적으로 키웁니다.
   const baseFontSize = isDesktop ? 15 : 17; 
   const titleFontSize = isDesktop ? "18px" : "20px";
 
@@ -1149,20 +1148,19 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
     { role: "model", text: "안녕하세요! SimpsonYS님의 전체 자산 현황이나 특정 종목에 대해 무엇이든 물어보세요. 🤖" }
   ]);
   
-  // ❌ 주의: 여기에 있던 const [input, setInput] = useState(""); 코드는 완전히 삭제되었습니다!
-
   const [loading, setLoading] = useState(false);
-
-  // ★ 핵심 추가: 자동 전송이 두 번 실행되는 것을 막는 방어막(Flag)
   const hasAutoSent = useRef(false);
 
   const handleSend = async (overrideInput) => {
-    // ★ 버튼 클릭 이벤트(객체)가 들어올 경우를 대비한 안전장치 추가
     const textToSend = typeof overrideInput === "string" ? overrideInput : input;
-    
     if (!textToSend || !textToSend.trim() || loading) return;
 
-    setMessages(prev => [...prev, { role: "user", text: textToSend }]);
+    // ★ 핵심 복구 영역: 사용자 질문 뒤에, AI가 대답할 'model' 빈칸을 반드시 추가해야 합니다!
+    setMessages(prev => [
+      ...prev, 
+      { role: "user", text: textToSend },
+      { role: "model", text: "" } 
+    ]);
     setInput("");
     setLoading(true);
 
@@ -1172,18 +1170,17 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
       div: Math.round(SUMMARY.cumDividend / 10000)
     };
 
-    // ★ 최신 달의 전체 자산 현황 데이터 추출 (만원 단위)
     const latest = MONTHLY[MONTHLY.length - 1] || {};
     const assetBreakdown = {
-      총자산: Math.round((latest.assetTotal || 0) / 10000),
-      투자자산: Math.round((latest.invest || 0) / 10000),
-      부동산_대출: Math.round((latest.realEstate || 0) / 10000),
-      전세보증금: Math.round((latest.jeonse || 0) / 10000),
-      T채권: Math.round((latest.tBond || 0) / 10000),
-      예적금: Math.round((latest.deposit || 0) / 10000),
-      계좌_카드: Math.round((latest.accCard || 0) / 10000),
-      연금: Math.round((latest.pension || 0) / 10000),
-      자동차: Math.round((latest.car || 0) / 10000)
+      총순자산: Math.round((latest.assetTotal || 0) / 10000),
+      투자_자산: Math.round((latest.invest || 0) / 10000),
+      부동산_순가치_자산: Math.round((latest.realEstate || 0) / 10000),
+      거주전세보증금_자산: Math.round((latest.jeonse || 0) / 10000),
+      T채권_자산: Math.round((latest.tBond || 0) / 10000),
+      예적금_자산: Math.round((latest.deposit || 0) / 10000),
+      계좌카드현금_자산: Math.round((latest.accCard || 0) / 10000),
+      연금_자산: Math.round((latest.pension || 0) / 10000),
+      자동차_자산: Math.round((latest.car || 0) / 10000)
     };
 
     const historyData = MONTHLY.map(m => 
@@ -1195,56 +1192,52 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
     );
 
     const systemPrompt = `
-    You are a Senior Quantitative Investment Analyst briefing your client, SimpsonYS. 
-    Your tone must be cold, objective, and purely data-driven. Respond professionally in Korean.
-    
-    # CLIENT CONTEXT & GOALS
-    - Target: Retire in Dec 2030 with Net Worth 5B KRW (Realistic: 2-3B KRW). Transition from 'Guardian' to 'Creator' (valuing Health, Freedom, Influence).
-    - Income & Tax [CRITICAL]: Samsung Part Leader (>150M KRW income). 38% Marginal Tax Bracket. You MUST advise keeping Financial Income < 20M KRW to avoid comprehensive income tax.
-    - Family & Real Estate: 1 Wife, 2 Daughters. Keep Sadang (73㎡), Sell Pyeongtaek (79㎡) in 2028.
-    - Liquidity Event [CRITICAL]: Monitor strictly -> 'Korea Treasury Bond 16-8' Maturity (~300M KRW, Dec '26) VS Jeonse Deposit Return Liability (~620M KRW, Jan '27).
-    - Routine & Strategy: Target Risk 55% / Safe 45%.
-      * Pension 1 (Namu, Thu): S&P500, Nasdaq (Company funded, no manual cash).
-      * Pension 2 (Kiwoom, Tue): S&P500, Nasdaq, SOL US Div (Personal).
-      * General (Meritz, Daily): BRK.B 50k, Gold 20k (Taxable).
-      * ISA (Namu, Daily): ACE Indonesia 60k (Sell 'KODEX CD Rate Active' for liquidity).
-    
-    # PORTFOLIO DATA (All currency values are in '만원' - 10,000 KRW)
-    
-    1. [Current Status] 
-    - Principal: ${currentSummary.prin}만원
-    - Total Evaluation: ${currentSummary.eval}만원
-    - Cumulative Dividend: ${currentSummary.div}만원
-    
-    2. [Asset Breakdown (Total Wealth)]
-    ${JSON.stringify(assetBreakdown)}
-    
-    3. [Monthly History (Format: "YY-MM: Principal/TotalEval")]
-    ${JSON.stringify(historyData)}
-    
-    4. [All Holdings (Format: "Ticker: TotalEval/ReturnPct")]
-    ${JSON.stringify(holdingsData)}
-    
-    # RULES
-    - Tone: Provide daily morning briefing style answers (Cold and Data-driven). No emotional fluff.
-    - Context-Awareness: Always align your advice with the 2030 retirement goal, the 38% tax constraint, and the crucial 2026/2027 liquidity matching event.
-    - Data Interpretation: Read 'Monthly History' for past performance. Calculate profit dynamically as (TotalEval - Principal).
-    - Number Formatting: Always format '만원' numbers naturally in Korean (e.g., 32000만원 -> 3억 2,000만원).
-        `;
-        
-    // ★ Pro 모델 적용 완료
+You are a Senior Quantitative Investment Analyst briefing your client, SimpsonYS. 
+Your tone must be cold, objective, and purely data-driven. Respond professionally in Korean.
+
+# CLIENT CONTEXT & GOALS
+- Target: Retire in Dec 2030 with Net Worth 5B KRW (Realistic: 2-3B KRW).
+- Income & Tax [CRITICAL]: Samsung Part Leader (>150M KRW income). 38% Marginal Tax Bracket. Keep Financial Income < 20M KRW.
+- Family & Real Estate: 1 Wife, 2 Daughters. Keep Sadang (73㎡), Sell Pyeongtaek (79㎡) in 2028.
+- Annual Additional Investment: Exactly 10,000,000 KRW (1,000만 원). DO NOT assume 40M.
+
+# ACCOUNTING & LIQUIDITY RULES [CRITICAL]
+1. ZERO DEBT IN BREAKDOWN: ALL items in the [Asset Breakdown] are pure ASSETS (자산).
+2. Real Estate (부동산_순가치_자산): NET EQUITY (Total Value - Jeonse Liability).
+3. Jeonse Deposit (거주전세보증금_자산): Asset (money to be returned to the client).
+4. Liquidity Event (2026-2027): Jan '27 Jeonse Return to the tenant means moving liquidity (Cash/Bonds) INTO Real Estate. (Flow: Investment -> Real Estate). In 2028, selling Pyeongtaek reverses this (Real Estate -> Investment).
+
+# PORTFOLIO DATA (All currency values are in '만원' - 10,000 KRW)
+1. [Current Status] 
+- Principal: ${currentSummary.prin}만원
+- Total Evaluation: ${currentSummary.eval}만원
+
+2. [Asset Breakdown (Total Wealth)]
+${JSON.stringify(assetBreakdown)}
+
+3. [Monthly History]
+${JSON.stringify(historyData)}
+
+4. [All Holdings]
+${JSON.stringify(holdingsData)}
+
+# RULES
+- Tone: Cold and Data-driven.
+- FORMATTING [CRITICAL]: Use Markdown lists, headers, line breaks (\\n), and tables. DO NOT include memo headers (TO, FROM, DATE).
+- Number Formatting: Always format numbers naturally in Korean (e.g., 32000만원 -> 3억 2,000만원).
+    `;
+
     const MODEL_NAME = "gemini-2.5-pro"; 
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
     try {
       const chatHistory = messages
-        .filter(m => !m.text.includes("안녕하세요"))
+        .filter(m => !m.text.includes("안녕하세요") && m.text !== "")
         .map(m => ({ role: m.role, parts: [{ text: m.text }] }));
       
-      // ★ 문제의 원인 해결: userText를 textToSend로 확실하게 변경했습니다.
       chatHistory.push({ role: "user", parts: [{ text: textToSend }] });
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:streamGenerateContent?alt=sse&key=${apiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1254,31 +1247,60 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
         })
       });
 
-      const resData = await response.json();
-      if (!response.ok) throw new Error(resData.error?.message || "API 연결 에러");
+      if (!response.ok) throw new Error("API 연결 에러");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let currentResponse = ""; 
       
-      const reply = resData.candidates[0].content.parts[0].text;
-      setMessages(prev => [...prev, { role: "model", text: reply }]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n");
+        
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const dataStr = line.substring(6).trim();
+            if (!dataStr || dataStr === "[DONE]") continue;
+            
+            try {
+              const data = JSON.parse(dataStr);
+              const textPiece = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              
+              if (textPiece) {
+                 currentResponse += textPiece; 
+                 setMessages(prev => {
+                    const newMsg = [...prev];
+                    // ★ 화면에 그리기 직전에 보기 싫은 ** 기호만 쏙 지워줍니다!
+                    newMsg[newMsg.length - 1].text = currentResponse.replace(/\*\*/g, ""); 
+                    return newMsg;
+                 });
+              }
+            } catch (e) {}
+          }
+        }
+      }
     } catch (error) {
-      setMessages(prev => [...prev, { role: "model", text: `시스템 알림: ${error.message}` }]);
+      setMessages(prev => {
+        const newMsg = [...prev];
+        newMsg[newMsg.length - 1].text = `시스템 알림: ${error.message}`;
+        return newMsg;
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  // ─────────────────────────────────────────────────────────
-  // ★ 핵심 수정: 방어막(hasAutoSent.current)이 false일 때만 한 번 전송
   useEffect(() => {
     if (input && input.trim() !== "" && !hasAutoSent.current) {
-      hasAutoSent.current = true; // 깃발을 꽂아서 다음 렌더링 땐 무시하도록 처리
+      hasAutoSent.current = true;
       handleSend();
     }
   }, []);
-  // ─────────────────────────────────────────────────────────
 
   return (
-    // ★ 모바일: position:fixed로 헤더 바로 아래 ~ 탭바 바로 위를 정확히 채움
-    // ★ 데스크톱: 기존 방식 유지
     <div style={
       isDesktop
         ? { padding: pad, display: "flex", flexDirection: "column", height: "calc(100vh - 120px)", background: T.bg }
@@ -1292,7 +1314,7 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
               <div style={{ 
                 color: m.role === "user" ? T.accent : T.text, 
                 padding: m.role === "user" ? "10px 0" : "0",
-                fontSize: baseFontSize, // ★ 기본 폰트 크기 적용
+                fontSize: baseFontSize,
                 lineHeight: 1.6, 
                 textAlign: "left",
                 borderBottom: m.role === "user" ? `1px dashed ${T.border}` : "none",
@@ -1301,17 +1323,14 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
                 {m.role === "user" ? (
                   `💬 SimpsonYS: ${m.text}`
                 ) : (
-                  // ✅ 기존 ReactMarkdown 태그 부분을 이렇게 덮어써 주세요!
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm]} // ★ 핵심: 표 변환 플러그인 장착
+                    remarkPlugins={[remarkGfm]}
                     components={{
                       p: ({node, ...props}) => <p style={{ marginBottom: "16px", lineHeight: "1.7", fontSize: `${baseFontSize}px` }} {...props} />,
                       h3: ({node, ...props}) => <h3 style={{ marginTop: "30px", marginBottom: "14px", fontSize: titleFontSize, fontWeight: "bold", color: T.text }} {...props} />,
                       ul: ({node, ...props}) => <ul style={{ paddingLeft: "24px", marginBottom: "16px", listStyleType: "disc" }} {...props} />,
                       li: ({node, ...props}) => <li style={{ marginBottom: "10px", lineHeight: "1.7", fontSize: `${baseFontSize}px` }} {...props} />,
-                      strong: ({node, ...props}) => <strong style={{ fontWeight: "800", color: T.accent }} {...props} />, // 강조색도 예쁘게 변경!
-                      
-                      // ★ 새롭게 추가된 표(Table) 디자인 스타일
+                      strong: ({node, ...props}) => <strong style={{ fontWeight: "800", color: T.accent }} {...props} />,
                       table: ({node, ...props}) => <div style={{ overflowX: "auto", margin: "16px 0", borderRadius: 8, border: `1px solid ${T.border}` }}><table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: `${baseFontSize - 1}px` }} {...props} /></div>,
                       th: ({node, ...props}) => <th style={{ borderBottom: `2px solid ${T.border}`, padding: "12px 14px", color: T.text, fontWeight: 800, background: T.surface }} {...props} />,
                       td: ({node, ...props}) => <td style={{ borderBottom: `1px solid ${T.border}`, padding: "12px 14px", color: T.textDim }} {...props} />
@@ -1332,12 +1351,12 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="질문을 입력하세요..."
-            style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.text, padding: "12px 14px", borderRadius: 10, outline: "none", fontSize: baseFontSize }} // ★ 입력창 글씨 크기 확대
+            style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.text, padding: "12px 14px", borderRadius: 10, outline: "none", fontSize: baseFontSize }} 
           />
           <button 
             onClick={handleSend}
             disabled={loading}
-            style={{ background: "transparent", color: "#000", border: "1px solid #5A6272", padding: "0 20px", borderRadius: 10, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.5 : 1, fontSize: baseFontSize - 1 }} // ★ 전송 버튼 글씨 크기 확대
+            style={{ background: "transparent", color: "#000", border: "1px solid #5A6272", padding: "0 20px", borderRadius: 10, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.5 : 1, fontSize: baseFontSize - 1 }} 
           >
             🚀
           </button>
@@ -1346,6 +1365,7 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
     </div>
   );
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  사이드바 (데스크톱 전용)
 // ─────────────────────────────────────────────────────────────────────────────
