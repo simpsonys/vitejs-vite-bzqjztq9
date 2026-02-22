@@ -1223,7 +1223,7 @@ Your tone must be cold, objective, and purely data-driven. Respond professionall
 2. [Asset Breakdown (Total Wealth)]
 ${JSON.stringify(assetBreakdown)}
 
-3. [Monthly History] (Format: YY-MM: Principal/Evaluation)
+3. [Monthly History] (Format: YY-MM: Principal/Evaluation, where YY is 20YY, e.g., 25-01 = 2025-01)
 ${JSON.stringify(historyData)}
 
 4. [All Holdings]
