@@ -1192,7 +1192,7 @@ function QaTab({ data, bp, input, setInput, headerH = 56, tabBarH = 50 }) {
     };
 
     const historyData = MONTHLY.map(m => 
-      `${m.date}: ${Math.round(m.principal / 10000)}/${Math.round(m.evalTotal / 10000)}`
+      `${m.date.replace('20', '')}: ${Math.round(m.principal / 10000)}/${Math.round(m.evalTotal / 10000)}`
     );
 
     const holdingsData = HOLDINGS.map(h => 
@@ -1223,7 +1223,7 @@ Your tone must be cold, objective, and purely data-driven. Respond professionall
 2. [Asset Breakdown (Total Wealth)]
 ${JSON.stringify(assetBreakdown)}
 
-3. [Monthly History]
+3. [Monthly History] (Format: YY-MM: Principal/Evaluation)
 ${JSON.stringify(historyData)}
 
 4. [All Holdings]
