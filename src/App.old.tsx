@@ -1,18 +1,240 @@
 // @ts-nocheck
 import { useState, useEffect, useRef } from "react";
 import * as recharts from "recharts";
+import Papa from "papaparse";
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-
-// Import from refactored modules
-import { T, SC, SHEET_URLS } from './constants';
-import { fK, fF, fP, n, parseDate, parseMonthlyTSV, parseHoldingsTSV, deriveDividends } from './utils';
+import remarkGfm from 'remark-gfm'; // ★ 이 줄을 추가해 주세요!
 
 const {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart,
   ComposedChart, ReferenceLine, Line
 } = recharts;
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Google Sheets TSV URLs
+// ─────────────────────────────────────────────────────────────────────────────
+const SHEET_URLS = {
+  MONTHLY:  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRNIqvHfw09eErVopZIhn9_zwahlvNGbZQNmK511jF_VpAXnphgZzGODTHOBRbYwyMsEP6s4_FRtBYa/pub?gid=945160625&single=true&output=tsv",
+  HOLDINGS: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRNIqvHfw09eErVopZIhn9_zwahlvNGbZQNmK511jF_VpAXnphgZzGODTHOBRbYwyMsEP6s4_FRtBYa/pub?gid=2105489842&single=true&output=tsv",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Theme & Colors
+// ─────────────────────────────────────────────────────────────────────────────
+const T = {
+  bg:"#080B10", surface:"#0F1318", card:"#131820",
+  accent:"#00E676", accentDim:"rgba(0,230,118,0.12)", accentGlow:"rgba(0,230,118,0.05)",
+  red:"#FF5252", orange:"#FFB74D", blue:"#42A5F5", cyan:"#4DD0E1",
+  // ▼ 여기 두 줄을 더 밝은 회색으로 변경했습니다 ▼
+  text:"#ECF0F6", textSec:"#B0B8C4", textDim:"#8A94A6",
+  border:"rgba(255,255,255,0.04)", borderActive:"rgba(0,230,118,0.25)",
+};
+const SC = ["#42A5F5","#FF7043","#66BB6A","#FFD740","#CE93D8","#4DD0E1","#FF8A65","#AED581","#FFF176","#BA68C8","#4FC3F7","#FF5252","#81C784","#FFB74D","#9575CD","#26C6DA","#EF5350","#A5D6A7","#FFC107","#7E57C2","#F06292","#80CBC4","#DCE775","#B39DDB","#4DB6AC","#E57373","#64B5F6","#AED581","#FFB74D","#90A4AE"];
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TSV 파싱 유틸리티
+// ─────────────────────────────────────────────────────────────────────────────
+function n(v) {
+  if (v === null || v === undefined || v === "" || v === "#N/A") return 0;
+  if (typeof v === "number") return v;
+  const s = String(v).replace(/[₩$,\s]/g, "").trim();
+  if (s.includes("%")) return parseFloat(s.replace("%", ""));
+  const num = parseFloat(s);
+  return isNaN(num) ? 0 : num;
+}
+
+function parseDate(str) {
+  if (!str) return null;
+  const s = String(str).replace(/\s+/g, "").trim();
+  if (!s) return null;
+  let m = s.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})\.?$/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}`;
+  m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}`;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[1].padStart(2, "0")}`;
+  m = s.match(/^(\d{2})\/(\d{1,2})$/);
+  if (m) {
+    const year = 2000 + parseInt(m[1], 10);
+    return `${year}-${m[2].padStart(2, "0")}`;
+  }
+  return null;
+}
+
+function parseMonthlyTSV(text) {
+  const rows = text.split("\n").map(r => r.split("\t"));
+  const header = rows[7] || [];
+  const findIdx = (name) => header.findIndex(h => h.includes(name));
+  
+  const idxCumDiv = findIdx("누적 배당 수익");
+  const idxTotal  = findIdx("TOTAL");
+
+  const r2 = rows[2] || [];
+  const r3 = rows[3] || [];
+  const r4 = rows[4] || [];
+
+  const SUMMARY = {
+    principal: n(r2[10]) * 1000,
+    profit:    n(r2[11]) * 1000,
+    evalTotal: n(r2[12]) * 1000,
+    returnPct: n(r2[13]) > 500 ? n(r2[13]) / 100 : n(r2[13]),
+    months:    n(r3[2]),
+    highReturnPct: n(r3[4]) > 500 ? n(r3[4]) / 100 : n(r3[4]),
+    fromHighPct:   n(r3[6]),
+    cumDividend:   n(r3[11]) * 1000,
+    avgMonthlyProfit: n(r4[2]) * 1000,
+    cumCapGain:    n(r4[11]) * 1000 || (n(r2[11]) * 1000 - n(r3[11]) * 1000)
+  };
+
+  const monthlyMap = new Map();
+  let runningCumDiv = 0;
+  let firstDividendFound = false;
+
+  for (let i = 14; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length < 10) continue;
+
+    let dIdx = -1;
+    for(let j=0; j<4; j++) {
+      if (parseDate(row[j])) { dIdx = j; break; }
+    }
+    if (dIdx === -1) continue; 
+
+    const date = parseDate(row[dIdx]);
+    const principal = n(row[dIdx + 1]) * 1000;
+    if (principal <= 0) continue; 
+
+    const rawVal = n(row[idxCumDiv !== -1 ? idxCumDiv : 58]) * 1000;
+    if (rawVal > 0) { firstDividendFound = true; runningCumDiv = rawVal; }
+
+    const profit = n(row[dIdx + 3]) * 1000;
+    const curCumDiv = firstDividendFound ? runningCumDiv : 0;
+    
+    let rawReturn = n(row[dIdx + 6]);
+    if (principal < 10000000 && (rawReturn > 500 || rawReturn < -500)) {
+      rawReturn = 0; 
+    } else if (rawReturn > 500) {
+      rawReturn = rawReturn / 100;
+    }
+
+    monthlyMap.set(date, {
+      date,
+      principal,
+      evalTotal:     (n(row[dIdx + 2]) * 1000) || principal,
+      profit:        profit,
+      principalChg:  n(row[dIdx + 4]) * 1000,
+      returnPct:     rawReturn,
+      cumDividend:   curCumDiv,
+      capGain:       profit - curCumDiv,
+      assetTotal:    n(row[idxTotal !== -1 ? idxTotal : 53]) * 1000 || 0,
+      invest: n(row[46])*1000||0, realEstate: n(row[56])*1000||0, tBond: n(row[54])*1000||0,
+      deposit: n(row[45])*1000||0, pension: n(row[49])*1000||0, car: n(row[51])*1000||0,
+      jeonse: n(row[52])*1000||0, accCard: n(row[55])*1000||0
+    });
+  }
+
+  const MONTHLY = Array.from(monthlyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+  return { SUMMARY, MONTHLY };
+}
+
+function parseHoldingsTSV(text) {
+  const rows = text.split("\n").map(r => r.split("\t"));
+  const HOLDINGS = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length < 8) continue;
+
+    const name = (row[2] || "").trim();
+    if (!name) continue;
+
+    const evalAmount = n(row[6]);
+    if (evalAmount <= 0) continue;
+
+    HOLDINGS.push({
+      country:    (row[0] || "").trim(),
+      code:       (row[1] || "").trim(),
+      name,
+      type:       (row[3] || "").trim(),
+      qty:        n(row[4]),
+      buyAmount:  n(row[5]),
+      evalAmount,
+      profit:     n(row[7]),
+      returnPct:  n(row[8]),
+      weight:     n(row[9]),
+    });
+  }
+
+  HOLDINGS.sort((a, b) => b.weight - a.weight);
+  return HOLDINGS;
+}
+
+function deriveDividends(monthly) {
+  if (!monthly || !monthly.length) return [];
+
+  const byYear = {};
+  
+  monthly.forEach(d => {
+    const yr = d.date.substring(0, 4);
+    if (!byYear[yr]) {
+      byYear[yr] = { monthlyDividends: [], cumDividends: [], lastProfit: 0, lastPrincipal: 0, lastEval: 0 };
+    }
+    byYear[yr].monthlyDividends.push(d.dividend || 0);
+    byYear[yr].cumDividends.push(d.cumDividend || 0);
+    byYear[yr].lastProfit    = d.profit || 0;
+    byYear[yr].lastPrincipal = d.principal || 0;
+    byYear[yr].lastEval      = d.evalTotal || 0;
+  });
+
+  let prevYearEndCumDiv = 0;
+  let prevProfit = 0;
+  const sortedYears = Object.keys(byYear).sort();
+
+  const result = sortedYears.map(yr => {
+    const v = byYear[yr];
+    let divIncome = v.monthlyDividends.reduce((s, x) => s + x, 0);
+    const yearEndCumDiv = Math.max(...v.cumDividends);
+    if (divIncome <= 0 && yearEndCumDiv > prevYearEndCumDiv) {
+      divIncome = yearEndCumDiv - prevYearEndCumDiv;
+    }
+    const totalReturn  = v.lastProfit - prevProfit;
+    const capGain      = totalReturn - divIncome;
+    
+    const item = {
+      year: parseInt(yr),
+      divIncome: Math.max(0, divIncome),
+      capGain, totalReturn, cumDiv: yearEndCumDiv,
+      cumTotal: v.lastProfit, yearEndPrincipal: v.lastPrincipal, yearEndEval: v.lastEval,
+    };
+    prevYearEndCumDiv = yearEndCumDiv;
+    prevProfit = v.lastProfit;
+    return item;
+  });
+
+  return result.map((d, i) => ({
+    ...d,
+    divGrowth: i === 0 || result[i-1].divIncome === 0 ? 0 : +((d.divIncome / result[i-1].divIncome - 1) * 100).toFixed(2),
+  }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  포맷 헬퍼
+// ─────────────────────────────────────────────────────────────────────────────
+const fK = (v) => {
+  if (v === undefined || v === null || isNaN(v)) return "0";
+  const val = Number(v);
+  if (Math.abs(val) >= 100000000) return (val / 100000000).toFixed(1) + "억";
+  if (Math.abs(val) >= 10000) return (val / 10000).toLocaleString(undefined, {maximumFractionDigits:0}) + "만";
+  return val.toLocaleString();
+};
+const fF = (v) => (v > 0 ? "+" : "") + Math.abs(v).toLocaleString() + "원";
+const fP = (v) => {
+  if (v === undefined || v === null || isNaN(v)) return "0.00%";
+  const val = Number(v);
+  if (Math.abs(val) > 1000) return "0.00%";
+  return val.toFixed(2) + "%";
+};
 
 function useBP() {
   // ★ FIX 1: visualViewport로 폴드폰 화면 전환을 정확하게 감지 + 디바운스로 안정화
