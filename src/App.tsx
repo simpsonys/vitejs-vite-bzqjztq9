@@ -1350,7 +1350,12 @@ ${JSON.stringify(holdingsData)}
               </div>
             </div>
           ))}
-          {loading && <div style={{ color: T.textDim, fontSize: baseFontSize - 2, textAlign: "left" }}>데이터 분석 중... ⏳</div>}
+          {loading && (
+            <div style={{ color: T.textDim, fontSize: baseFontSize - 2, textAlign: "left", display: "flex", alignItems: "center", gap: 8 }}>
+              데이터 분석 중... 
+              <span style={{ display: "inline-block", animation: "spin 2s linear infinite" }}>⏳</span>
+            </div>
+          )}
           
           {/* ★ 추가된 부분 3: 맨 아래에 위치한 '투명한 닻' */}
           <div ref={messagesEndRef} />
@@ -1560,6 +1565,7 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         body{background:${T.bg};overflow-x:hidden}
+        @keyframes spin{to{transform:rotate(360deg)}}
       `}</style>
 
       {isDesktop ? (
