@@ -307,18 +307,18 @@ function OverviewTab({ data, bp, onAskAi }) {
             </button>
           </div>
           <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-            <div style={{ minWidth: 740 }}> {/* ★ 수량 열이 추가되어 전체 표 넓이(minWidth) 확보 */}
+            <div style={{ minWidth: 840 }}>
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
                   <tr>
                     <th onClick={() => handleSort('originalRank')} style={{ ...thStyle }}>순위{renderSortIcon('originalRank')}</th>
                     <th onClick={() => handleSort('name')} style={{ ...thStyle, textAlign: "center" }}>종목명{renderSortIcon('name')}</th>
                     <th onClick={() => handleSort('type')} style={{ ...thStyle }}>국가/분류{renderSortIcon('type')}</th>
-                    {/* ★ 수량 헤더 추가 (클릭 시 정렬 연동) */}
                     <th onClick={() => handleSort('qty')} style={{ ...thStyle, textAlign: "right" }}>수량{renderSortIcon('qty')}</th>
                     <th onClick={() => handleSort('weight')} style={{ ...thStyle, textAlign: "right" }}>비중{renderSortIcon('weight')}</th>
                     <th onClick={() => handleSort('buyAmount')} style={{ ...thStyle, textAlign: "right" }}>매입금액{renderSortIcon('buyAmount')}</th>
                     <th onClick={() => handleSort('evalAmount')} style={{ ...thStyle, textAlign: "right" }}>평가금액{renderSortIcon('evalAmount')}</th>
+                    <th onClick={() => handleSort('profit')} style={{ ...thStyle, textAlign: "right" }}>수익금액{renderSortIcon('profit')}</th>
                     <th onClick={() => handleSort('returnPct')} style={{ ...thStyle, textAlign: "right" }}>수익률{renderSortIcon('returnPct')}</th>
                   </tr>
                 </thead>
@@ -328,11 +328,13 @@ function OverviewTab({ data, bp, onAskAi }) {
                       <td style={{ padding: "12px 8px", color: T.textSec, fontSize: 13, fontWeight: 700 }}>{h.originalRank}</td>
                       <td style={{ padding: "12px 8px", color: T.text, fontSize: 14, fontWeight: 600, textAlign: "center" }}>{h.name}</td>
                       <td style={{ padding: "12px 8px", color: T.textDim, fontSize: 12 }}>{h.country} · {h.type}</td>
-                      {/* ★ 수량 데이터 추가 (숫자에 쉼표 포맷 적용) */}
                       <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{h.qty.toLocaleString()}</td>
                       <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{h.weight.toFixed(1)}%</td>
                       <td style={{ padding: "12px 8px", color: T.textDim, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(h.buyAmount)}원</td>
                       <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(h.evalAmount)}원</td>
+                      <td style={{ padding: "12px 8px", color: h.profit >= 0 ? T.accent : T.red, fontSize: 13, fontWeight: 700, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>
+                        {fK(h.profit)}원
+                      </td>
                       <td style={{ padding: "12px 8px", color: h.returnPct >= 0 ? T.accent : T.red, fontSize: 13, fontWeight: 700, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>
                         {fP(h.returnPct)}
                       </td>
@@ -778,6 +780,8 @@ function HoldingsTab({ data, bp }) {
 
   const [sortBy, setSortBy] = useState("weight");
   const [filter, setFilter] = useState("전체");
+  const [showAllHoldings, setShowAllHoldings] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: 'originalRank', direction: 'asc' });
   
   const types    = ["전체", ...new Set(HOLDINGS.map(h => h.type))];
   const filtered = filter === "전체" ? HOLDINGS : HOLDINGS.filter(h => h.type === filter);
@@ -881,6 +885,9 @@ function HoldingsTab({ data, bp }) {
             {s.l}
           </button>
         ))}
+        <button onClick={() => setShowAllHoldings(true)} style={{ padding:"5px 10px", borderRadius:6, border:`1px solid ${T.borderActive}`, background:T.accentDim, color:T.accent, fontSize:10, fontWeight:600, cursor:"pointer", marginLeft:"auto" }}>
+          전체 종목 보기 ({HOLDINGS.length})
+        </button>
       </div>
 
       <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}` }}>
@@ -906,6 +913,70 @@ function HoldingsTab({ data, bp }) {
           ))}
         </div>
       </div>
+
+      {/* 전체 종목 팝업 */}
+      {showAllHoldings && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: T.bg, zIndex: 99999,
+          display: "flex", flexDirection: "column"
+        }}>
+          <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${T.border}`, background: T.surface }}>
+            <h2 style={{ color: T.text, fontSize: 18, margin: 0, fontWeight: 800 }}>💎 전체 보유 종목 ({HOLDINGS.length}개)</h2>
+            <button 
+              onClick={() => setShowAllHoldings(false)} 
+              style={{ background: "transparent", border: "none", color: T.text, fontSize: 24, cursor: "pointer", padding: "0 8px" }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
+            <div style={{ minWidth: 840 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                <thead>
+                  <tr>
+                    <th onClick={() => { setSortConfig({ key: 'originalRank', direction: sortConfig.key === 'originalRank' && sortConfig.direction === 'asc' ? 'desc' : 'asc' }); }} style={{ cursor: "pointer", userSelect: "none", padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1 }}>순위</th>
+                    <th onClick={() => { setSortConfig({ key: 'name', direction: sortConfig.key === 'name' && sortConfig.direction === 'asc' ? 'desc' : 'asc' }); }} style={{ cursor: "pointer", userSelect: "none", padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "center" }}>종목명</th>
+                    <th onClick={() => { setSortConfig({ key: 'type', direction: sortConfig.key === 'type' && sortConfig.direction === 'asc' ? 'desc' : 'asc' }); }} style={{ cursor: "pointer", userSelect: "none", padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1 }}>국가/분류</th>
+                    <th onClick={() => { setSortConfig({ key: 'qty', direction: sortConfig.key === 'qty' && sortConfig.direction === 'desc' ? 'asc' : 'desc' }); }} style={{ cursor: "pointer", userSelect: "none", padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>수량</th>
+                    <th onClick={() => { setSortConfig({ key: 'weight', direction: sortConfig.key === 'weight' && sortConfig.direction === 'desc' ? 'asc' : 'desc' }); }} style={{ cursor: "pointer", userSelect: "none", padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>비중</th>
+                    <th onClick={() => { setSortConfig({ key: 'buyAmount', direction: sortConfig.key === 'buyAmount' && sortConfig.direction === 'desc' ? 'asc' : 'desc' }); }} style={{ cursor: "pointer", userSelect: "none", padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>매입금액</th>
+                    <th onClick={() => { setSortConfig({ key: 'evalAmount', direction: sortConfig.key === 'evalAmount' && sortConfig.direction === 'desc' ? 'asc' : 'desc' }); }} style={{ cursor: "pointer", userSelect: "none", padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>평가금액</th>
+                    <th onClick={() => { setSortConfig({ key: 'profit', direction: sortConfig.key === 'profit' && sortConfig.direction === 'desc' ? 'asc' : 'desc' }); }} style={{ cursor: "pointer", userSelect: "none", padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>수익금액</th>
+                    <th onClick={() => { setSortConfig({ key: 'returnPct', direction: sortConfig.key === 'returnPct' && sortConfig.direction === 'desc' ? 'asc' : 'desc' }); }} style={{ cursor: "pointer", userSelect: "none", padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>수익률</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {HOLDINGS.map((h, i) => ({ ...h, originalRank: i + 1 })).sort((a, b) => {
+                    let aVal = a[sortConfig.key];
+                    let bVal = b[sortConfig.key];
+                    if (sortConfig.key === 'type') { aVal = a.country + a.type; bVal = b.country + b.type; }
+                    if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+                    if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+                    return 0;
+                  }).map((h, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${T.border}40` }}>
+                      <td style={{ padding: "12px 8px", color: T.textSec, fontSize: 13, fontWeight: 700 }}>{h.originalRank}</td>
+                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 14, fontWeight: 600, textAlign: "center" }}>{h.name}</td>
+                      <td style={{ padding: "12px 8px", color: T.textDim, fontSize: 12 }}>{h.country} · {h.type}</td>
+                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{h.qty.toLocaleString()}</td>
+                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{h.weight.toFixed(1)}%</td>
+                      <td style={{ padding: "12px 8px", color: T.textDim, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(h.buyAmount)}원</td>
+                      <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(h.evalAmount)}원</td>
+                      <td style={{ padding: "12px 8px", color: h.profit >= 0 ? T.accent : T.red, fontSize: 13, fontWeight: 700, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>
+                        {fK(h.profit)}원
+                      </td>
+                      <td style={{ padding: "12px 8px", color: h.returnPct >= 0 ? T.accent : T.red, fontSize: 13, fontWeight: 700, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>
+                        {fP(h.returnPct)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
