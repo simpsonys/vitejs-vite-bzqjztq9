@@ -88,6 +88,14 @@ export function parseMonthlyTSV(text: string): { SUMMARY: Summary; MONTHLY: Mont
   }
 
   const MONTHLY = Array.from(monthlyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+  
+  // Fix: Use the last month's cumDividend as the summary value for stability
+  if (MONTHLY.length > 0) {
+    const lastMonth = MONTHLY[MONTHLY.length - 1];
+    SUMMARY.cumDividend = lastMonth.cumDividend;
+    SUMMARY.cumCapGain = lastMonth.capGain;
+  }
+  
   return { SUMMARY, MONTHLY };
 }
 
