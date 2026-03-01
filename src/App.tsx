@@ -437,7 +437,7 @@ function ReturnsTab({ data, bp }) {
         </div>
       </div>
 
-      <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
+      <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}`, marginBottom:16 }}>
         <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 12px" }}>연도별 누적 수익률</p>
         <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr", gap:"0 16px" }}>
           {Object.entries(yearlyMap).map(([yr, v]) => (
@@ -450,6 +450,52 @@ function ReturnsTab({ data, bp }) {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
+        <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 12px" }}>월별 누적 수익률</p>
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+            <thead>
+              <tr>
+                <th style={{ padding:"8px 4px", textAlign:"left", color:T.textDim, borderBottom:`1px solid ${T.border}`, position:"sticky", left:0, background:T.card, zIndex:1 }}>연도</th>
+                {["01","02","03","04","05","06","07","08","09","10","11","12"].map(m => (
+                  <th key={m} style={{ padding:"8px 4px", textAlign:"right", color:T.textDim, borderBottom:`1px solid ${T.border}`, minWidth:60 }}>{m}월</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                const byYear = {};
+                MONTHLY.forEach(d => {
+                  const [year, month] = d.date.split("-");
+                  if (!byYear[year]) byYear[year] = {};
+                  byYear[year][month] = d.returnPct;
+                });
+                return Object.keys(byYear).sort().reverse().map(year => (
+                  <tr key={year}>
+                    <td style={{ padding:"8px 4px", color:T.text, fontWeight:600, borderBottom:`1px solid ${T.border}40`, position:"sticky", left:0, background:T.card, zIndex:1 }}>{year}</td>
+                    {["01","02","03","04","05","06","07","08","09","10","11","12"].map(month => {
+                      const val = byYear[year][month];
+                      return (
+                        <td key={month} style={{ 
+                          padding:"8px 4px", 
+                          textAlign:"right", 
+                          color: val === undefined ? T.textDim : val >= 0 ? T.accent : T.red,
+                          fontWeight: val === undefined ? 400 : 600,
+                          fontFamily: val === undefined ? "inherit" : "'IBM Plex Mono',monospace",
+                          borderBottom:`1px solid ${T.border}40`
+                        }}>
+                          {val === undefined ? "-" : fP(val)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ));
+              })()}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -496,7 +542,7 @@ function CumulativeTab({ data, bp }) {
         </ResponsiveContainer>
       </div>
 
-      <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
+      <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}`, marginBottom:16 }}>
         <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 12px" }}>원금 변동</p>
         <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr", gap:"0 16px" }}>
           {[...MONTHLY].reverse().filter(d => d.principalChg !== 0).map((d, i) => (
@@ -510,6 +556,52 @@ function CumulativeTab({ data, bp }) {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
+        <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 12px" }}>월별 누적 수익률</p>
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+            <thead>
+              <tr>
+                <th style={{ padding:"8px 4px", textAlign:"left", color:T.textDim, borderBottom:`1px solid ${T.border}`, position:"sticky", left:0, background:T.card, zIndex:1 }}>연도</th>
+                {["01","02","03","04","05","06","07","08","09","10","11","12"].map(m => (
+                  <th key={m} style={{ padding:"8px 4px", textAlign:"right", color:T.textDim, borderBottom:`1px solid ${T.border}`, minWidth:60 }}>{m}월</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                const byYear = {};
+                MONTHLY.forEach(d => {
+                  const [year, month] = d.date.split("-");
+                  if (!byYear[year]) byYear[year] = {};
+                  byYear[year][month] = d.returnPct;
+                });
+                return Object.keys(byYear).sort().reverse().map(year => (
+                  <tr key={year}>
+                    <td style={{ padding:"8px 4px", color:T.text, fontWeight:600, borderBottom:`1px solid ${T.border}40`, position:"sticky", left:0, background:T.card, zIndex:1 }}>{year}</td>
+                    {["01","02","03","04","05","06","07","08","09","10","11","12"].map(month => {
+                      const val = byYear[year][month];
+                      return (
+                        <td key={month} style={{ 
+                          padding:"8px 4px", 
+                          textAlign:"right", 
+                          color: val === undefined ? T.textDim : val >= 0 ? T.accent : T.red,
+                          fontWeight: val === undefined ? 400 : 600,
+                          fontFamily: val === undefined ? "inherit" : "'IBM Plex Mono',monospace",
+                          borderBottom:`1px solid ${T.border}40`
+                        }}>
+                          {val === undefined ? "-" : fP(val)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ));
+              })()}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -708,9 +800,9 @@ function AssetsTab({ data, bp }) {
                 const d = payload[0].payload;
                 const pct = ((d.value / latest.assetTotal) * 100).toFixed(1);
                 return (
-                  <div style={{ background:"rgba(15, 19, 24, 0.92)", borderRadius:10, padding:"12px 16px", border:"1px solid rgba(255, 255, 255, 0.2)", backdropFilter:"blur(12px)", boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
-                    <p style={{ color:"#FFFFFF", fontSize:13, fontWeight:700, margin:"0 0 6px", textShadow:"0 1px 2px rgba(0,0,0,0.5)" }}>{d.name}</p>
-                    <p style={{ color:"#FFFFFF", fontSize:12, margin:0, fontFamily:"'IBM Plex Mono',monospace", fontWeight:600 }}>{pct}% · ₩{fK(d.value)}원</p>
+                  <div style={{ background:"rgba(15, 19, 24, 0.5)", borderRadius:10, padding:"12px 16px", border:"1px solid rgba(200, 200, 200, 0.3)", backdropFilter:"blur(12px)", boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
+                    <p style={{ color:d.fill || "#FFFFFF", fontSize:13, fontWeight:700, margin:"0 0 6px", textShadow:"0 1px 3px rgba(255,255,255,0.3)" }}>{d.name}</p>
+                    <p style={{ color:d.fill || "#FFFFFF", fontSize:12, margin:0, fontFamily:"'IBM Plex Mono',monospace", fontWeight:600, textShadow:"0 1px 3px rgba(255,255,255,0.3)" }}>{pct}% · ₩{fK(d.value)}원</p>
                   </div>
                 );
               }}/>
@@ -834,10 +926,12 @@ function HoldingsTab({ data, bp }) {
               <Tooltip content={({active,payload}) => {
                 if (!active||!payload?.length) return null;
                 const d = payload[0].payload;
+                const idx = top12.findIndex(h => h.name === d.name);
+                const color = SC[idx % SC.length];
                 return (
-                  <div style={{ background:"rgba(15, 19, 24, 0.92)", borderRadius:10, padding:"12px 16px", border:"1px solid rgba(255, 255, 255, 0.2)", backdropFilter:"blur(12px)", boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
-                    <p style={{ color:"#FFFFFF", fontSize:13, fontWeight:700, margin:"0 0 6px", textShadow:"0 1px 2px rgba(0,0,0,0.5)" }}>{d.name}</p>
-                    <p style={{ color:"#FFFFFF", fontSize:12, margin:0, fontFamily:"'IBM Plex Mono',monospace", fontWeight:600 }}>{d.weight.toFixed(1)}% · ₩{fK(d.evalAmount)}원</p>
+                  <div style={{ background:"rgba(15, 19, 24, 0.5)", borderRadius:10, padding:"12px 16px", border:"1px solid rgba(200, 200, 200, 0.3)", backdropFilter:"blur(12px)", boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
+                    <p style={{ color:color || "#FFFFFF", fontSize:13, fontWeight:700, margin:"0 0 6px", textShadow:"0 1px 3px rgba(255,255,255,0.3)" }}>{d.name}</p>
+                    <p style={{ color:color || "#FFFFFF", fontSize:12, margin:0, fontFamily:"'IBM Plex Mono',monospace", fontWeight:600, textShadow:"0 1px 3px rgba(255,255,255,0.3)" }}>{d.weight.toFixed(1)}% · ₩{fK(d.evalAmount)}원</p>
                   </div>
                 );
               }}/>
