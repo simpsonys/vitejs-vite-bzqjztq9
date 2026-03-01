@@ -142,6 +142,7 @@ function OverviewTab({ data, bp, onAskAi }) {
 
   const [quickQuestion, setQuickQuestion] = useState("");
   const [showAllHoldings, setShowAllHoldings] = useState(false);
+  const [showMonthlyData, setShowMonthlyData] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: 'originalRank', direction: 'asc' });
 
   const handleKeyDown = (e) => {
@@ -196,7 +197,11 @@ function OverviewTab({ data, bp, onAskAi }) {
       <div style={{ background:"linear-gradient(145deg,#131B26,#0E1319)", borderRadius:20, padding:isDesktop?"28px":"24px 20px", marginBottom:16, border:`1px solid ${T.border}`, position:"relative", overflow:"hidden" }}>
         <div style={{ position:"absolute", top:-30, right:-30, width:150, height:150, borderRadius:"50%", background:T.accentGlow, filter:"blur(40px)" }}/>
         <p style={{ color:T.textSec, fontSize:isDesktop?14:12, margin:"0 0 3px", fontWeight:500 }}>총 평가금액</p>
-        <h2 style={{ color:T.text, fontSize:isDesktop?38:28, fontWeight:800, margin:"0 0 2px", letterSpacing:"-1px", fontFamily:"'IBM Plex Mono',monospace" }}>
+        <h2 
+          style={{ color:T.text, fontSize:isDesktop?38:28, fontWeight:800, margin:"0 0 2px", letterSpacing:"-1px", fontFamily:"'IBM Plex Mono',monospace", cursor:"pointer" }}
+          onClick={() => setShowMonthlyData(true)}
+          title="월별 데이터 보기"
+        >
           ₩{SUMMARY.evalTotal.toLocaleString()}
         </h2>
         <p style={{ color:SUMMARY.returnPct>=0?T.accent:T.red, fontSize:isDesktop?18:14, fontWeight:700, margin:"0 0 20px", fontFamily:"'IBM Plex Mono',monospace" }}>
@@ -356,6 +361,67 @@ function OverviewTab({ data, bp, onAskAi }) {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 월별 데이터 모달 */}
+      {showMonthlyData && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: T.bg, zIndex: 99999,
+          display: "flex", flexDirection: "column"
+        }}>
+          <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${T.border}`, background: T.surface }}>
+            <h2 style={{ color: T.text, fontSize: 18, margin: 0, fontWeight: 800 }}>📊 월별 데이터</h2>
+            <button 
+              onClick={() => setShowMonthlyData(false)} 
+              style={{ background: "transparent", border: "none", color: T.text, fontSize: 24, cursor: "pointer", padding: "0 8px" }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
+            <div style={{ minWidth: 1000 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1 }}>Date</th>
+                    <th style={{ padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>투자원금</th>
+                    <th style={{ padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>평가총액</th>
+                    <th style={{ padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>수익금액</th>
+                    <th style={{ padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>원금증감</th>
+                    <th style={{ padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>수익증감</th>
+                    <th style={{ padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>수익률</th>
+                    <th style={{ padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>CD</th>
+                    <th style={{ padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>채권</th>
+                    <th style={{ padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>배당수익</th>
+                    <th style={{ padding: "12px 8px", color: T.textDim, borderBottom: `2px solid ${T.border}`, position: "sticky", top: 0, background: T.bg, fontSize: 13, zIndex: 1, textAlign: "right" }}>누적배당</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...MONTHLY].reverse().map((m, i, arr) => {
+                    const prev = arr[i + 1];
+                    const profitChange = prev ? m.profit - prev.profit : 0;
+                    return (
+                      <tr key={i} style={{ borderBottom: `1px solid ${T.border}40` }}>
+                        <td style={{ padding: "12px 8px", color: T.textSec, fontSize: 13, fontWeight: 600 }}>{m.date}</td>
+                        <td style={{ padding: "12px 8px", color: T.blue, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(m.principal)}원</td>
+                        <td style={{ padding: "12px 8px", color: T.text, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(m.evalTotal)}원</td>
+                        <td style={{ padding: "12px 8px", color: m.profit >= 0 ? T.accent : T.red, fontSize: 13, fontWeight: 700, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(m.profit)}원</td>
+                        <td style={{ padding: "12px 8px", color: m.principalChg >= 0 ? T.cyan : T.red, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{m.principalChg >= 0 ? "+" : ""}{fK(m.principalChg)}원</td>
+                        <td style={{ padding: "12px 8px", color: profitChange >= 0 ? T.accent : T.red, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{profitChange >= 0 ? "+" : ""}{fK(profitChange)}원</td>
+                        <td style={{ padding: "12px 8px", color: m.returnPct >= 0 ? T.accent : T.red, fontSize: 13, fontWeight: 700, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fP(m.returnPct)}</td>
+                        <td style={{ padding: "12px 8px", color: T.textDim, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(m.deposit)}원</td>
+                        <td style={{ padding: "12px 8px", color: T.textDim, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(m.tBond)}원</td>
+                        <td style={{ padding: "12px 8px", color: T.orange, fontSize: 13, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(m.dividend)}원</td>
+                        <td style={{ padding: "12px 8px", color: T.orange, fontSize: 13, fontWeight: 700, fontFamily:"'IBM Plex Mono',monospace", textAlign: "right" }}>{fK(m.cumDividend)}원</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -543,23 +609,6 @@ function CumulativeTab({ data, bp }) {
       </div>
 
       <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}`, marginBottom:16 }}>
-        <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 12px" }}>원금 변동</p>
-        <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr", gap:"0 16px" }}>
-          {[...MONTHLY].reverse().filter(d => d.principalChg !== 0).map((d, i) => (
-            <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"9px 0", borderBottom:`1px solid ${T.border}` }}>
-              <span style={{ color:T.textSec, fontSize:12 }}>{d.date}</span>
-              <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                <span style={{ color:d.principalChg>0?T.accent:T.red, fontSize:12, fontWeight:600, fontFamily:"'IBM Plex Mono',monospace" }}>
-                  {d.principalChg>0?"+":""}{fK(d.principalChg)}
-                </span>
-                <span style={{ color:T.textDim, fontSize:11 }}>→ {fK(d.principal)}원</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
         <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 12px" }}>월별 누적 수익률</p>
         <div style={{ overflowX:"auto" }}>
           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
@@ -604,12 +653,29 @@ function CumulativeTab({ data, bp }) {
           </table>
         </div>
       </div>
+
+      <div style={{ background:T.card, borderRadius:16, padding:16, border:`1px solid ${T.border}` }}>
+        <p style={{ color:T.text, fontSize:13, fontWeight:700, margin:"0 0 12px" }}>원금 변동</p>
+        <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr", gap:"0 16px" }}>
+          {[...MONTHLY].reverse().filter(d => d.principalChg !== 0).map((d, i) => (
+            <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"9px 0", borderBottom:`1px solid ${T.border}` }}>
+              <span style={{ color:T.textSec, fontSize:12 }}>{d.date}</span>
+              <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                <span style={{ color:d.principalChg>0?T.accent:T.red, fontSize:12, fontWeight:600, fontFamily:"'IBM Plex Mono',monospace" }}>
+                  {d.principalChg>0?"+":""}{fK(d.principalChg)}
+                </span>
+                <span style={{ color:T.textDim, fontSize:11 }}>→ {fK(d.principal)}원</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
 function DividendTab({ data, bp }) {
-  const { SUMMARY, DIVIDENDS } = data;
+  const { SUMMARY, DIVIDENDS, MONTHLY } = data;
   const isDesktop = bp === "desktop";
   const isWide    = bp !== "mobile";
   const pad    = isDesktop ? "0 28px 48px" : "0 16px 100px";
@@ -691,6 +757,41 @@ function DividendTab({ data, bp }) {
               <span style={{ color:d.totalReturn>=0?T.text:T.red, fontSize:12, fontWeight:700, textAlign:"center", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(d.totalReturn)}</span>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* 월별 배당 테이블 */}
+      <div style={{ background:T.card, borderRadius:16, overflow:"hidden", border:`1px solid ${T.border}`, marginTop:16 }}>
+        <div style={{ padding:"16px", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
+          <p style={{ color:T.text, fontSize:14, fontWeight:700, margin:0 }}>월별 배당 내역</p>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr", background:T.surface, borderBottom:`1px solid ${T.border}` }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px" }}>
+            {["월","배당 수익","누적 배당","수익률"].map((h, i) => (
+              <span key={`mh1-${i}`} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:"center" }}>{h}</span>
+            ))}
+          </div>
+          {isWide && (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px" }}>
+              {["월","배당 수익","누적 배당","수익률"].map((h, i) => (
+                <span key={`mh2-${i}`} style={{ color:T.textDim, fontSize:10, fontWeight:600, textAlign:"center" }}>{h}</span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:isWide?"repeat(2,1fr)":"1fr" }}>
+          {[...MONTHLY].reverse().map((m, i, arr) => {
+            const prev = arr[i + 1];
+            const monthlyDiv = prev ? m.cumDividend - prev.cumDividend : 0;
+            return (
+              <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", padding:"10px 14px", borderBottom:`1px solid ${T.border}`, alignItems:"center" }}>
+                <span style={{ color:T.textSec, fontSize:12, textAlign:"center" }}>{m.date}</span>
+                <span style={{ color:T.orange, fontSize:12, fontWeight:600, textAlign:"center", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(monthlyDiv)}</span>
+                <span style={{ color:T.orange, fontSize:12, fontWeight:600, textAlign:"center", fontFamily:"'IBM Plex Mono',monospace" }}>{fK(m.cumDividend)}</span>
+                <span style={{ color:m.returnPct>=0?T.accent:T.red, fontSize:12, fontWeight:700, textAlign:"center", fontFamily:"'IBM Plex Mono',monospace" }}>{fP(m.returnPct)}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

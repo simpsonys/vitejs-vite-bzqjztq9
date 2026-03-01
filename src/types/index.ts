@@ -29,6 +29,7 @@ export interface MonthlyData {
   car: number;
   jeonse: number;
   accCard: number;
+  dividend: number;
 }
 
 export interface Holding {

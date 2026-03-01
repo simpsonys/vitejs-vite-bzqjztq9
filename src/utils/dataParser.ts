@@ -83,7 +83,8 @@ export function parseMonthlyTSV(text: string): { SUMMARY: Summary; MONTHLY: Mont
       pension: n(row[49]) * 1000 || 0,
       car: n(row[51]) * 1000 || 0,
       jeonse: n(row[52]) * 1000 || 0,
-      accCard: n(row[55]) * 1000 || 0
+      accCard: n(row[55]) * 1000 || 0,
+      dividend: n(row[57]) * 1000 || 0
     });
   }
 
