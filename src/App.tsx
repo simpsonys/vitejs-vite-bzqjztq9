@@ -1645,7 +1645,9 @@ export default function App() {
           <div ref={headerRef} style={{ padding:"14px 18px", position:"sticky", top:0, background:`${T.bg}ee`, backdropFilter:"blur(20px)", zIndex:10, borderBottom:`1px solid ${T.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <div>
               <h1 style={{ color:T.text, fontSize:17, fontWeight:700, margin:0 }}>{titles[tab]}</h1>
-              <p style={{ color:T.textDim, fontSize:9, margin:"1px 0 0" }}>SIMPSONYS FINANCE REPORT</p>
+              <p style={{ color:T.textDim, fontSize:9, margin:"1px 0 0" }}>
+                SIMPSONYS FINANCE REPORT (v{__BUILD_VERSION__})
+              </p>
             </div>
             <div style={{ display:"flex", gap:6 }}>
               {["overview", "assets", "qa"].map(id => {
