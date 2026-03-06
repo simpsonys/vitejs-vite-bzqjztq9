@@ -1141,7 +1141,7 @@ function HoldingsTab({ data, bp }) {
               ✕
             </button>
           </div>
-          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
+          <div onDoubleClick={() => setShowAllHoldings(false)} style={{ flex: 1, overflow: "auto", padding: "16px" }}>
             <div style={{ minWidth: 840 }}>
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
