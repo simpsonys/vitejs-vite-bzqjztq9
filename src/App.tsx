@@ -143,6 +143,32 @@ function OverviewTab({ data, bp, onAskAi }) {
   const [quickQuestion, setQuickQuestion] = useState("");
   const [showAllHoldings, setShowAllHoldings] = useState(false);
   const [showMonthlyData, setShowMonthlyData] = useState(false);
+
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (showAllHoldings) {
+        setShowAllHoldings(false);
+      }
+      if (showMonthlyData) {
+        setShowMonthlyData(false);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [showAllHoldings, showMonthlyData]);
+
+  const openAllHoldings = () => {
+    window.history.pushState({ modal: 'allHoldings' }, null, '');
+    setShowAllHoldings(true);
+  };
+
+  const openMonthlyData = () => {
+    window.history.pushState({ modal: 'monthlyData' }, null, '');
+    setShowMonthlyData(true);
+  };
   const [sortConfig, setSortConfig] = useState({ key: 'originalRank', direction: 'asc' });
 
   const handleKeyDown = (e) => {
@@ -199,7 +225,7 @@ function OverviewTab({ data, bp, onAskAi }) {
         <p style={{ color:T.textSec, fontSize:isDesktop?14:12, margin:"0 0 3px", fontWeight:500 }}>총 평가금액</p>
         <h2 
           style={{ color:T.text, fontSize:isDesktop?38:28, fontWeight:800, margin:"0 0 2px", letterSpacing:"-1px", fontFamily:"'IBM Plex Mono',monospace", cursor:"pointer" }}
-          onClick={() => setShowMonthlyData(true)}
+          onClick={openMonthlyData}
           title="월별 데이터 보기"
         >
           ₩{SUMMARY.evalTotal.toLocaleString()}
@@ -292,7 +318,7 @@ function OverviewTab({ data, bp, onAskAi }) {
                   <div style={{ width:28, height:28, borderRadius:7, background:`${SC[i%SC.length]}15`, display:"flex", alignItems:"center", justifyContent:"center", color:SC[i%SC.length], fontSize:11, fontWeight:800 }}>{i+1}</div>
                   <div 
                     style={{ flex:1, minWidth:0, cursor:"pointer" }} 
-                    onClick={() => setShowAllHoldings(true)}
+                    onClick={openAllHoldings}
                     title="전체 종목 보기"
                   >
                     <p style={{ color:T.text, fontSize:12, fontWeight:600, margin:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{h.name}</p>
@@ -327,7 +353,13 @@ function OverviewTab({ data, bp, onAskAi }) {
               ✕
             </button>
           </div>
-          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
+          <div onDoubleClick={() => {
+            if (window.history.state?.modal) {
+              window.history.back();
+            } else {
+              setShowAllHoldings(false);
+            }
+          }} style={{ flex: 1, overflow: "auto", padding: "16px" }}>
             <div style={{ minWidth: 840 }}>
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
@@ -384,7 +416,13 @@ function OverviewTab({ data, bp, onAskAi }) {
               ✕
             </button>
           </div>
-          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
+          <div onDoubleClick={() => {
+            if (window.history.state?.modal) {
+              window.history.back();
+            } else {
+              setShowAllHoldings(false);
+            }
+          }} style={{ flex: 1, overflow: "auto", padding: "16px" }}>
             <div style={{ minWidth: 1000 }}>
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
